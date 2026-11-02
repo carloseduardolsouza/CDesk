@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>CDesk - Pedido de acesso</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="ask.css">
+</head>
+<body class="ask">
+<div class="dlg ask-panel" role="dialog" aria-labelledby="askTitle">
+  <div class="dlg-head drag">
+    <div class="dlg-icon" aria-hidden="true">
+      <svg width="28" height="28" viewBox="0 0 64 64"><path d="M48 12H19a9 9 0 0 0-9 9v16a9 9 0 0 0 9 9h29" fill="none" stroke="#3B82F6" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><path d="M23 56h16" fill="none" stroke="#3B82F6" stroke-width="6" stroke-linecap="round"/><path d="M33 19L49 28.5L42 30.5L46.5 38.5L43 40.3L38.6 32.4L33 36.5Z" fill="#fff" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>
+    </div>
+    <div>
+      <h2 id="askTitle">Pedido de acesso</h2>
+      <p id="askSub">Alguém quer ver e controlar este computador</p>
+    </div>
+  </div>
+  <dl class="dlg-box">
+    <div id="rowName" hidden><dt>Quem pede</dt><dd id="askName"></dd></div>
+    <div><dt>ID de quem pede</dt><dd id="askId" class="mono"></dd></div>
+    <div><dt>Vai poder</dt><dd id="askCan"></dd></div>
+  </dl>
+  <div class="countdown">
+    <div class="countdown-row"><span>Recusa automática em</span><b id="askSec"></b></div>
+    <div class="bar" aria-hidden="true"><div id="askBar"></div></div>
+  </div>
+  <div class="dlg-actions">
+    <button id="deny" class="btn">Recusar</button>
+    <button id="allow" class="btn primary">Aceitar</button>
+  </div>
+</div>
+<script src="ask.js"></script>
+</body>
+</html>

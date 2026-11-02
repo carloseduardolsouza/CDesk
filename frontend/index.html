@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CDesk</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="settings.css">
+</head>
+<body>
+<nav class="tabs" aria-label="Sessões">
+  <div class="brand">
+    <svg role="img" aria-label="CDesk" width="22" height="22" viewBox="0 0 64 64"><path d="M48 12H19a9 9 0 0 0-9 9v16a9 9 0 0 0 9 9h29" fill="none" stroke="#3B82F6" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><path d="M23 56h16" fill="none" stroke="#3B82F6" stroke-width="6" stroke-linecap="round"/><path d="M33 19L49 28.5L42 30.5L46.5 38.5L43 40.3L38.6 32.4L33 36.5Z" fill="#fff" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>
+    <span>CDesk</span>
+  </div>
+  <div id="tabList" class="tablist"></div>
+  <button id="newTab" class="icon-btn" aria-label="Abrir nova aba">
+    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+  </button>
+</nav>
+
+<div id="home">
+  <div class="addr">
+    <span id="net" class="net" role="img" aria-label="Conectando à rede">
+      <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>
+    </span>
+    <form id="connectForm" class="addr-form">
+      <label for="rid" class="sr">ID do computador remoto</label>
+      <input id="rid" inputmode="numeric" placeholder="Digite o ID do computador remoto" autocomplete="off" required>
+      <button id="connect" class="go">
+        <span>Conectar</span>
+        <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </button>
+    </form>
+    <button id="menuBtn" class="menu-btn" aria-label="Menu de opções" aria-haspopup="menu" aria-expanded="false">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
+  </div>
+
+  <div id="menu" class="menu" role="menu" aria-label="Opções" hidden>
+    <button role="menuitem" id="miSettings">
+      <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>
+      <span>Configurações</span>
+    </button>
+    <button role="menuitem" id="miSec">
+      <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg>
+      <span>Segurança e senha de acesso</span>
+    </button>
+    <button role="menuitem" id="miNet">
+      <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0M2 9a15 15 0 0 1 20 0M12 20h.01"/></svg>
+      <span>Rede e conexão direta</span>
+    </button>
+    <div class="sep" aria-hidden="true"></div>
+    <button role="menuitem" id="miAbout">
+      <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 16v-4M12 8h.01"/></svg>
+      <span>Sobre o CDesk</span>
+    </button>
+    <button role="menuitem" id="miQuit" class="danger">
+      <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+      <span>Sair do CDesk</span>
+    </button>
+  </div>
+
+  <p id="msg" role="status" hidden></p>
+
+  <section class="me">
+    <div class="me-row">
+      <span class="me-label">Este dispositivo</span>
+      <span id="myId" class="bigid">...</span>
+      <button id="copyId" class="copy">
+        <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+        <span>Copiar</span>
+      </button>
+    </div>
+    <div class="state">
+      <span id="stateDot" class="sdot"></span>
+      <span id="stateText">Conectando à rede...</span>
+      <button id="end" class="end" hidden>Encerrar sessão</button>
+    </div>
+  </section>
+
+  <div class="listbar">
+    <div role="tablist" aria-label="Listas de computadores" class="ltabs">
+      <button role="tab" id="tabRecent" aria-selected="true">Sessões recentes</button>
+      <button role="tab" id="tabFav" aria-selected="false">Favoritos</button>
+      <button role="tab" id="tabLan" aria-selected="false">Encontrados na rede</button>
+    </div>
+    <div class="views">
+      <button id="refreshPresence" class="icon-btn" aria-label="Atualizar quem está online" title="Atualizar quem está online">
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5"/></svg>
+      </button>
+      <button id="viewGrid" class="icon-btn on" aria-label="Ver em grade" aria-pressed="true">
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      </button>
+      <button id="viewList" class="icon-btn" aria-label="Ver em lista" aria-pressed="false">
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <main class="list">
+    <div class="list-head">
+      <h2 id="listTitle">Sessões recentes · 0</h2>
+      <button id="showAll" class="link" hidden>Mostrar tudo</button>
+    </div>
+    <div id="grid" class="grid"></div>
+    <p id="empty" class="empty"></p>
+  </main>
+</div>
+
+<div id="settings" hidden></div>
+
+<!-- carregamento da conexão (e erro), mostrado na aba da sessão enquanto ela não está ao vivo -->
+<div id="connecting" hidden>
+  <div class="conn">
+    <div class="conn-head">
+      <div class="conn-tile" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      </div>
+      <div class="conn-title">
+        <span id="cTitle"></span>
+        <span id="cSub" class="mono"></span>
+      </div>
+      <button id="cLogsBtn" class="conn-btn" aria-expanded="false">Ver detalhes</button>
+    </div>
+    <div class="conn-track" aria-hidden="true">
+      <span id="cLeft" class="node left"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9" opacity="0"/><path d="M5 12h3M16 12h3"/></svg></span>
+      <span class="line"><span id="cFill" class="fill"></span></span>
+      <span id="cRight" class="node right"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span>
+    </div>
+    <p id="cStatus" class="conn-status" role="status"></p>
+    <pre id="cLogs" class="conn-logs" hidden></pre>
+    <div class="conn-actions">
+      <button id="cClose" class="conn-btn">Fechar</button>
+      <button id="cRetry" class="conn-btn primary" hidden>Tentar novamente</button>
+    </div>
+  </div>
+</div>
+
+<div id="viewer" tabindex="-1" hidden>
+  <div id="sessbar" class="sessbar" hidden>
+    <span id="viewOnly" class="badge" hidden>Somente visualização</span>
+    <div id="monBtns" class="monbtns" role="group" aria-label="Monitores do computador remoto"></div>
+  </div>
+  <img id="screen" alt="Tela do computador remoto">
+</div>
+
+<dialog id="pwAsk" class="dlg" aria-labelledby="pwAskTitle">
+  <div class="dlg-head">
+    <div class="dlg-icon" aria-hidden="true">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+    </div>
+    <div>
+      <h2 id="pwAskTitle">Senha de acesso</h2>
+      <p>O computador <b id="pwAskName"></b> tem uma senha de acesso.</p>
+    </div>
+  </div>
+  <form id="pwAskForm" method="dialog">
+    <label for="pwAskInput" class="sr">Senha do computador remoto</label>
+    <input id="pwAskInput" type="password" placeholder="Senha" autocomplete="off" required>
+    <p id="pwAskErr" class="dlg-msg error" role="alert" hidden>Senha incorreta. Tente de novo.</p>
+    <label class="check"><input type="checkbox" id="pwAskRemember"> Lembrar a senha deste computador</label>
+    <div class="dlg-actions">
+      <button value="cancel" formnovalidate class="btn">Cancelar</button>
+      <button value="perm" formnovalidate class="btn">Pedir permissão</button>
+      <button value="ok" class="btn primary">Conectar</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="editDlg" class="dlg" aria-labelledby="editTitle">
+  <div class="dlg-head">
+    <div class="dlg-icon" aria-hidden="true">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+    </div>
+    <div>
+      <h2 id="editTitle">Editar computador</h2>
+      <p id="editId" class="mono"></p>
+    </div>
+  </div>
+  <form id="editForm" method="dialog">
+    <label for="editName" class="sr">Nome do computador</label>
+    <input id="editName" maxlength="40" placeholder="Nome (ex.: Escritório)" autocomplete="off">
+    <div class="dlg-actions">
+      <button type="button" id="editForget" class="btn" hidden>Esquecer senha</button>
+      <button type="button" id="editRemove" class="btn danger-btn">Remover da lista</button>
+      <button type="button" id="editCancel" class="btn">Cancelar</button>
+      <button id="editSave" class="btn primary">Salvar</button>
+    </div>
+  </form>
+</dialog>
+<script src="keys.js"></script>
+<script src="app.js"></script>
+<script src="settings.js"></script>
+</body>
+</html>

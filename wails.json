@@ -1,0 +1,6 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "CDesk",
+  "outputfilename": "CDesk",
+  "frontend:dir": "frontend"
+}

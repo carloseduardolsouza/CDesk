@@ -1,0 +1,5 @@
+/* janela do pedido de acesso: o painel ocupa a janela inteira (a janela não tem moldura) */
+body.ask { display: block; height: 100vh; overflow: hidden; background: #111823; user-select: none; }
+.ask-panel { display: flex; flex-direction: column; justify-content: center; gap: 22px; width: 100%; height: 100vh; border-radius: 0; box-shadow: none; border: 1px solid #263246; }
+.drag { --wails-draggable: drag; }
+.ask-panel .dlg-box dd { overflow-wrap: anywhere; }
