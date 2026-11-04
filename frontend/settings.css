@@ -154,3 +154,100 @@ select:focus { outline: 2px solid #3B82F6; outline-offset: -2px; }
 .thumb .offline b { padding: 4px 10px; border-radius: 999px; background: #2A1416; border: 1px solid #7F1D1D; color: #FCA5A5; font-size: 12px; font-weight: 600; }
 .grid.rows .pdot { top: auto; bottom: 9px; }
 .ltabs button { white-space: nowrap; }
+
+/* ---------- janela Exibição e chat ---------- */
+.disp { position: fixed; top: 52px; right: 12px; z-index: 20; width: min(440px, calc(100vw - 24px)); max-height: calc(100vh - 100px); overflow: auto; padding: 14px 16px; background: #1B1E23; border: 1px solid var(--line1); border-radius: 10px; box-shadow: 0 12px 32px #000a; }
+.disp h3 { margin: 12px 0 8px; font-size: 15px; font-weight: 500; color: #C9D1DD; }
+.disp h3:first-child { margin-top: 0; }
+.disp hr { border: 0; border-top: 1px solid var(--line1); margin: 12px 0 0; }
+.dnote { margin: 0 0 8px; font-size: 14px; color: #C9D1DD; }
+.seg { display: flex; background: #111; border-radius: 6px; overflow: hidden; }
+.segb { position: relative; flex: 1; min-height: 36px; padding: 0 8px; background: none; border: 0; color: var(--text); font-size: 13px; font-weight: 700; }
+.segb:hover { background: #22262d; }
+.segb.on { background: var(--accent); color: #fff; }
+.beta { position: absolute; top: 3px; right: 6px; padding: 0 5px; border-radius: 999px; background: #EF4444; color: #fff; font-size: 8px; font-weight: 700; }
+.dcheck { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 14px; }
+#screen[data-view="esticado"] { object-fit: fill; }
+#screen[data-view="original"] { flex: none; width: auto; max-width: none; max-height: none; margin: auto; }
+#screen.night { filter: brightness(.7) sepia(.35); }
+#viewer { overflow: auto; }
+
+.chat { position: fixed; right: 16px; bottom: 16px; z-index: 20; width: min(340px, calc(100vw - 32px)); height: min(440px, calc(100vh - 120px)); display: flex; flex-direction: column; background: #151515; border: 1px solid var(--line1); border-radius: 10px; box-shadow: 0 12px 32px #000a; }
+.chat[hidden] { display: none; }
+.chatbar { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--line1); font-size: 14px; }
+.chatbar .x { background: none; border: 0; color: var(--text); }
+.cmsgs { flex: 1; min-height: 0; overflow: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; }
+.chead { display: flex; justify-content: space-between; font-size: 12px; color: #A3AFC2; }
+.ctext { margin-top: 2px; font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.cmsg.sys .ctext { color: #86EFAC; font-style: italic; }
+.cmsg.me .chead span { color: #93C5FD; }
+.cform { display: flex; align-items: flex-end; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--line1); }
+.cform textarea { flex: 1; resize: none; background: none; border: 0; outline: 0; color: var(--text); font: inherit; font-size: 14px; }
+.csend { width: 36px; height: 36px; background: none; border: 0; color: #A3AFC2; font-size: 20px; }
+.csend:hover { color: var(--accent); }
+.chatbtn { margin-left: 8px; color: var(--text); border-color: var(--menu-line); }
+
+/* barra da sessão dentro da barra de abas: só ícones */
+.tabs .sessbar { position: static; margin-left: auto; min-height: 0; padding: 0 8px; gap: 2px; background: none; border: 0; }
+.sessbar .icon-btn { position: relative; color: var(--text); }
+.ubadge { position: absolute; top: 0; right: 0; min-width: 14px; padding: 0 3px; border-radius: 999px; background: #EF4444; color: #fff; font-size: 10px; font-weight: 700; line-height: 14px; }
+
+/* ---------- gerenciador de arquivos (tela cheia) ---------- */
+.files { position: fixed; inset: 41px 0 0 0; z-index: 15; width: auto; height: auto; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; background: #1E1E1E; color: #E5E7EB; outline: 0; font-size: 12px; }
+.files[open] { display: grid; grid-template-columns: 1fr 1fr; }
+.fpane { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.fpane + .fpane { border-left: 1px solid #2E2E2E; }
+.fhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; background: #1A1A1A; }
+.fdev { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.fbadge { width: 40px; height: 40px; flex: none; display: grid; place-items: center; background: var(--accent); border-radius: 4px; color: #fff; }
+.fdev b { display: block; color: #4ADE80; font-weight: 600; }
+.fdev span { color: #D1D5DB; }
+.fhead .fact { display: flex; align-items: center; gap: 4px; }
+.fbtn { min-height: 30px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; border-radius: 4px; color: #E5E7EB; font-size: 13px; }
+.fbtn:hover:not(:disabled) { background: #2C2C2C; }
+.fbtn:disabled { opacity: .4; }
+.fnav { display: flex; align-items: center; gap: 4px; padding: 6px 12px; }
+.fnav .fbtn { padding: 0 6px; }
+.fpath { flex: 1; min-width: 0; height: 28px; padding: 0 8px; background: #141414; border: 1px solid #2E2E2E; border-radius: 2px; color: #E5E7EB; font: inherit; font-size: 13px; }
+.fpath:focus { outline: 1px solid var(--accent); }
+.ferr { margin: 0 12px 4px; color: #FCA5A5; font-size: 12px; }
+.fcols, .frow { display: grid; grid-template-columns: minmax(0, 1fr) 110px 90px 150px; gap: 8px; align-items: center; padding: 0 12px; }
+.fcols { min-height: 28px; margin-top: 4px; color: #D1D5DB; font-size: 13px; }
+.fcols button { padding: 0 4px; background: none; border: 0; border-left: 1px solid #3A3A3A; color: inherit; font: inherit; text-align: left; }
+.fcols button:first-child { border-left: 0; }
+.fcols button:hover { color: #fff; }
+.flist { flex: 1; min-height: 0; overflow: auto; padding-bottom: 24px; }
+.flist.drop, .frow.drop { background: #1E3A5F; }
+.frow { min-height: 22px; border: 1px solid transparent; user-select: none; }
+.frow:hover { background: #262626; }
+.frow.on { background: #1E3A5F; border-color: #2F5D95; }
+.frow .n { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.frow .n span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.frow .n svg { flex: none; }
+.frow .t, .frow .s, .frow .d { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #D1D5DB; }
+.frow .s { text-align: right; padding-right: 8px; }
+.frow.cut { opacity: .5; }
+.fmenu { position: fixed; z-index: 40; min-width: 220px; padding: 4px; background: #252525; border: 1px solid #3A3A3A; border-radius: 6px; box-shadow: 0 8px 24px #000a; }
+.fmenu button { display: block; width: 100%; padding: 6px 12px; background: none; border: 0; border-radius: 4px; color: #E5E7EB; font-size: 13px; text-align: left; }
+.fmenu button:hover:not(:disabled) { background: var(--accent); color: #fff; }
+.fmenu button:disabled { opacity: .4; }
+.fmenu hr { margin: 4px 0; border: 0; border-top: 1px solid #3A3A3A; }
+.fasktext { margin: 0; white-space: pre-line; color: #C9D1DD; font-size: 14px; }
+.fasktext:empty { display: none; }
+.xfers { position: fixed; left: 16px; bottom: 16px; z-index: 50; display: flex; flex-direction: column; gap: 8px; width: min(340px, calc(100vw - 32px)); }
+.xfer { padding: 10px 12px; background: #252525; border: 1px solid #3A3A3A; border-radius: 8px; box-shadow: 0 8px 24px #000a; font-size: 13px; }
+.xhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.xhead b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.xhead button { background: none; border: 0; color: #A3AFC2; }
+.xbar { height: 4px; margin: 8px 0 6px; background: #3A3A3A; border-radius: 2px; overflow: hidden; }
+.xbar i { display: block; height: 100%; background: var(--accent); }
+.xtext { color: #A3AFC2; font-size: 12px; }
+.xfer.err .xtext { color: #FCA5A5; }
+.xfer.ok .xtext { color: #86EFAC; }
+.dcheck.sub { margin-left: 24px; }
+.opts { width: min(420px, calc(100vw - 24px)); }
+.dcheck:first-child { margin-top: 0; }
+
+/* cursor do computador remoto (desenhado por cima da imagem) */
+.rcursor { position: fixed; z-index: 10; width: 20px; height: 26px; margin: -1px 0 0 -2px; pointer-events: none; filter: drop-shadow(0 1px 2px #0008); }
+.opts .dnote { margin: 6px 0 0 24px; color: #FBBF24; font-size: 12px; }

@@ -5,6 +5,7 @@ import (
 	"embed"
 	"io/fs"
 	"log"
+	"net/http"
 	"os"
 	"slices"
 
@@ -26,15 +27,26 @@ func main() {
 		runAsk(os.Args[2:])
 		return
 	}
+	if len(os.Args) > 1 && os.Args[1] == "--session" { // janela da sessão no host (outro processo)
+		runSession(os.Args[2:])
+		return
+	}
 	assets, _ := fs.Sub(embedded, "frontend")
 	app := &App{}
 	err := wails.Run(&options.App{
-		Title:       "CDesk",
-		Width:       1024,
-		Height:      700,
-		MinWidth:    520,
-		MinHeight:   480,
-		AssetServer: &assetserver.Options{Assets: assets, Handler: frameHandler{app}},
+		Title:     "CDesk",
+		Width:     1024,
+		Height:    700,
+		MinWidth:  520,
+		MinHeight: 480,
+		AssetServer: &assetserver.Options{Assets: assets, Handler: frameHandler{app},
+			// sem cache: o WebView2 guarda JS/CSS e, depois de uma atualização, mostraria a interface antiga
+			Middleware: func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("Cache-Control", "no-store")
+					next.ServeHTTP(w, r)
+				})
+			}},
 		// mesma cor do fundo do CSS: evita flash branco ao abrir
 		BackgroundColour: &options.RGBA{R: 21, G: 23, B: 27, A: 255},
 		Windows:          &windows.Options{Theme: windows.Dark},

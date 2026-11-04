@@ -10,6 +10,10 @@ export function CheckOnline(arg1) {
   return window['go']['main']['App']['CheckOnline'](arg1);
 }
 
+export function CheckUpdate() {
+  return window['go']['main']['App']['CheckUpdate']();
+}
+
 export function ConfigDir() {
   return window['go']['main']['App']['ConfigDir']();
 }
@@ -24,6 +28,22 @@ export function Disconnect(arg1) {
 
 export function EndSession() {
   return window['go']['main']['App']['EndSession']();
+}
+
+export function FilesCancel(arg1) {
+  return window['go']['main']['App']['FilesCancel'](arg1);
+}
+
+export function FilesDownload(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['FilesDownload'](arg1, arg2, arg3, arg4, arg5);
+}
+
+export function FilesOp(arg1, arg2, arg3) {
+  return window['go']['main']['App']['FilesOp'](arg1, arg2, arg3);
+}
+
+export function FilesUpload(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['FilesUpload'](arg1, arg2, arg3, arg4, arg5);
 }
 
 export function ForgetPassword(arg1) {
@@ -62,6 +82,10 @@ export function SavedPasswords() {
   return window['go']['main']['App']['SavedPasswords']();
 }
 
+export function SendChat(arg1, arg2) {
+  return window['go']['main']['App']['SendChat'](arg1, arg2);
+}
+
 export function SendInput(arg1, arg2) {
   return window['go']['main']['App']['SendInput'](arg1, arg2);
 }
@@ -76,6 +100,10 @@ export function SetMonitor(arg1, arg2) {
 
 export function SetPassword(arg1) {
   return window['go']['main']['App']['SetPassword'](arg1);
+}
+
+export function SetSessionOption(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SetSessionOption'](arg1, arg2, arg3);
 }
 
 export function SetStartup(arg1) {

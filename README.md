@@ -167,13 +167,15 @@ go test .            # inclui a busca pela DHT (usa a internet)
 - 🧱 Em redes com **CGNAT ou NAT simétrico** (alguns 4G e redes corporativas) a conexão direta pode não abrir. Falta um relay próprio.
 - 🔓 A senha de acesso é enviada ao outro computador durante a conexão, sem desafio criptográfico. IDs de 9 dígitos podem ser forjados por força bruta de chaves, e senhas erradas são freadas só por um atraso simples, sem limite por computador.
 - 🟠 **"Offline" pode ser falso** para computadores que só são achados pela rede P2P pública, que é lenta. Quem já conectou antes e quem está na rede local aparece de forma confiável.
-- 🎞️ Vídeo em JPEG, sem áudio, sem transferência de arquivos nem chat. A área de transferência sincroniza só texto (até 256 KB).
-- 🌍 Só em português. As opções "Verificar atualizações", "Mostrar o cursor remoto" e "Ocultar o papel de parede remoto" aparecem como "Em breve".
+- 🎞️ Vídeo em JPEG, sem áudio. A área de transferência sincroniza só texto (até 256 KB).
+- 🌍 Só em português.
+- 🔊 O áudio vai sem compressão (~96 KB/s); em internet lenta pode falhar. A área de transferência de arquivos copia na hora (até 256 MB). O modo privacidade precisa do Windows 10 versão 2004 ou mais novo. Quem está no computador controlado desbloqueia as entradas com Ctrl+Alt+Shift+F12.
 
 ## 🗺️ Próximos passos
 
 - [ ] 🌉 Relay próprio, para redes onde a conexão direta não abre
-- [ ] 📁 Transferência de arquivos e 💬 chat
+- [x] 📁 Transferência de arquivos (só arquivos, sem pastas inteiras; nunca sobrescreve)
+- [ ] 💬 Chat
 - [ ] 🖼️ Imagens na área de transferência
 - [ ] 🎬 Vídeo mais eficiente (H.264, VP8 ou WebRTC)
 - [ ] 🐧 Suporte a Linux e macOS

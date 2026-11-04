@@ -16,11 +16,16 @@ import (
 // shortcut: só texto (até 256 KB); imagens e arquivos ficam para a transferência de arquivos.
 
 const (
-	maxClip     = 256 << 10
-	msgFrame    = 0 // mensagem host -> viewer: quadro JPEG
-	msgClip     = 1 // mensagem host -> viewer: texto da área de transferência
-	msgInfo     = 2 // mensagem host -> viewer: quantos monitores e qual está sendo mostrado
-	headerBytes = 5 // tipo (1) + tamanho (4)
+	maxClip      = 256 << 10
+	msgFrame     = 0 // mensagem host -> viewer: quadro JPEG
+	msgClip      = 1 // mensagem host -> viewer: texto da área de transferência
+	msgInfo      = 2 // mensagem host -> viewer: quantos monitores e qual está sendo mostrado
+	msgChat      = 3 // mensagem host -> viewer: texto do chat
+	msgAudio     = 4 // mensagem host -> viewer: PCM do que toca no host (audio_windows.go)
+	msgCursor    = 5 // mensagem host -> viewer: posição do cursor {"x","y"} (0..1 na tela mostrada)
+	msgFocus     = 6 // mensagem host -> viewer: janela em foco {"x","y","w","h"} (0..1)
+	msgClipFiles = 7 // mensagem host -> viewer: arquivos copiados no host {"dir","names"}
+	headerBytes  = 5 // tipo (1) + tamanho (4)
 )
 
 // hostConn é a sessão no lado de quem está sendo controlado. Os quadros e o texto da área de
@@ -29,6 +34,17 @@ type hostConn struct {
 	s       network.Stream
 	wmu     sync.Mutex
 	monitor atomic.Int32 // monitor mostrado ao viewer (0 = principal)
+	// o que o viewer pode fazer nesta sessão (começa nas Configurações; a janela da sessão altera)
+	ctl, clip, files   atomic.Bool
+	lockEnd, hostEnded atomic.Bool // viewer pediu bloquear a tela ao fim; o host encerrou a sessão (não bloqueia)
+	// recursos pedidos pelo viewer (hostfx.go)
+	feat             atomic.Int32 // bit 0: mandar o cursor; bit 1: mandar a janela em foco
+	winAssist        atomic.Bool  // trazer janelas fora da tela para dentro
+	fileClip         atomic.Bool  // sincronizar arquivos copiados
+	quit             chan struct{}
+	fxMu             sync.Mutex
+	audioStop        chan struct{}
+	resetRes, noWall bool // o que desfazer ao fim da sessão
 }
 
 func (c *hostConn) write(msg []byte) error {
@@ -80,6 +96,7 @@ func (a *App) clipLoop() {
 			return
 		case <-t.C:
 			a.clipTick()
+			a.fileClipTick()
 		}
 	}
 }
@@ -98,11 +115,10 @@ func (a *App) clipTick() {
 	a.lastClip = text
 	hc, vs := a.in, a.out[a.activeView]
 	a.mu.Unlock()
-	cfg := a.settings()
-	if hc != nil && cfg.AllowClipboard && cfg.AllowControl {
+	if hc != nil && hc.clip.Load() && hc.ctl.Load() {
 		hc.sendClip(text)
 	}
-	if vs != nil {
+	if vs != nil && !vs.noClip.Load() {
 		vs.sendClip(text)
 	}
 }
@@ -115,7 +131,7 @@ func (a *App) SetActiveSession(id string) {
 	a.activeView = id
 	v := a.out[id]
 	a.mu.Unlock()
-	if v == nil || a.clipGet == nil {
+	if v == nil || v.noClip.Load() || a.clipGet == nil {
 		return
 	}
 	if text := a.clipGet(); text != "" && len(text) <= maxClip {

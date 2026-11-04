@@ -8,3 +8,5 @@ import "image"
 func inject(Event, image.Rectangle) {}
 
 func releaseKey(int) {}
+
+var lockWorkstation = func() {}

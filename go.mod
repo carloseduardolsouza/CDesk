@@ -4,10 +4,12 @@ go 1.26.0
 
 require (
 	fyne.io/systray v1.12.2
+	github.com/go-ole/go-ole v1.3.0
 	github.com/ipfs/go-cid v0.6.2
 	github.com/kbinani/screenshot v0.0.0-20250624051815-089614a94018
 	github.com/libp2p/go-libp2p v0.51.0
 	github.com/libp2p/go-libp2p-kad-dht v0.43.0
+	github.com/moutend/go-wca v0.3.0
 	github.com/multiformats/go-multiaddr v0.16.1
 	github.com/multiformats/go-multihash v0.2.3
 	github.com/wailsapp/wails/v2 v2.17.1
@@ -31,7 +33,6 @@ require (
 	github.com/gen2brain/shm v0.1.0 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
 	github.com/google/uuid v1.6.0 // indirect

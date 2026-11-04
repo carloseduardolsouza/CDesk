@@ -76,13 +76,13 @@ func (k *AskApp) Answer(allow bool) {
 	wr.Quit(k.ctx)
 }
 
-// askAssets serve o frontend, com ask.html como página inicial.
-func askAssets() http.Handler {
+// pageAssets serve o frontend, com page como página inicial.
+func pageAssets(page string) http.Handler {
 	sub, _ := fs.Sub(embedded, "frontend")
 	files := http.FileServer(http.FS(sub))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" {
-			r.URL.Path = "/ask.html"
+			r.URL.Path = page
 		}
 		files.ServeHTTP(w, r)
 	})
@@ -108,7 +108,7 @@ func runAsk(args []string) {
 		Frameless:        true,
 		AlwaysOnTop:      *top,
 		BackgroundColour: &options.RGBA{R: 17, G: 24, B: 35, A: 255},
-		AssetServer:      &assetserver.Options{Handler: askAssets()},
+		AssetServer:      &assetserver.Options{Handler: pageAssets("/ask.html")},
 		Windows: &windows.Options{
 			Theme:               windows.Dark,
 			WebviewUserDataPath: filepath.Join(os.TempDir(), "cdesk-ask"), // não briga com o app principal

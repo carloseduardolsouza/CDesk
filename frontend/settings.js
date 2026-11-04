@@ -67,7 +67,6 @@ const panel = (title, ...rows) => h("section", { class: "scard" }, ...(title ? [
 const srow = (title, desc, control, forId) => h("div", { class: "srow" },
   h("div", { class: "stext" }, h(forId ? "label" : "span", forId ? { for: forId } : {}, title), ...(desc ? [h("span", { class: "desc" }, desc)] : [])),
   control);
-const soon = () => h("span", { class: "pill soon" }, "Em breve");
 const btn = (text, cls, onclick) => h("button", { class: "sbtn " + cls, onclick }, text);
 
 // o estado fica no próprio atributo, então dá para mudá-lo por fora (ex.: valor lido do Windows)
@@ -80,8 +79,6 @@ const toggle = (on, label, onchange) => {
   };
   return b;
 };
-const soonToggle = (label) => h("button", { class: "switch", role: "switch", "aria-checked": "false", "aria-label": label, disabled: "" });
-const soonRow = (title, desc) => srow(title, desc, h("span", { class: "inline" }, soon(), soonToggle(title)));
 
 const select = (id, options, value, onchange) => {
   const el = h("select", { class: "sinput", id }, ...options.map(([v, label]) => h("option", { value: String(v) }, label)));
@@ -93,6 +90,15 @@ const select = (id, options, value, onchange) => {
 // ---------- seções ----------
 
 function secGeral() {
+  const upd = h("span", { class: "desc", role: "status" }, "Versão atual: ...");
+  app().Version().then((v) => { upd.textContent = `Versão atual: ${v}`; });
+  const checkNow = async () => {
+    upd.textContent = "Verificando...";
+    try {
+      const u = await app().CheckUpdate();
+      upd.textContent = u.newer ? `Versão ${u.latest} disponível: ${u.url}` : `Você está na versão mais recente (${u.current}).`;
+    } catch (e) { upd.textContent = errText(e); }
+  };
   const name = h("input", { class: "sinput", id: "nome-pc", value: cfg.name, placeholder: "Meu computador", maxlength: "40" });
   name.onchange = () => set("name", name.value.trim());
 
@@ -138,7 +144,9 @@ function secGeral() {
       srow("Iniciar com o Windows", "Para receber conexões assim que o computador ligar", boot),
       srow("Minimizar para a bandeja ao fechar", "O CDesk continua rodando perto do relógio e recebendo conexões; para sair de vez, use o ícone da bandeja",
         toggle(cfg.trayOnClose, "Minimizar para a bandeja ao fechar", (on) => set("trayOnClose", on))),
-      soonRow("Verificar atualizações automaticamente", "Avisa quando houver uma versão nova")),
+      srow("Verificar atualizações ao abrir", "Consulta o GitHub por uma versão nova do CDesk; só avisa, não instala nada",
+        toggle(cfg.checkUpdates, "Verificar atualizações ao abrir", (on) => set("checkUpdates", on))),
+      srow("Versão", upd, h("span", { class: "inline" }, btn("Verificar agora", "", checkNow)))),
     panel("Dados",
       h("div", { class: "srow" }, h("div", { class: "stext" }, h("span", {}, "Pasta de configuração"), path), btn("Abrir pasta", "", () => app().OpenConfigDir())),
       srow("Histórico de sessões", "Apaga a lista de recentes e as miniaturas das telas", clear)),
@@ -156,7 +164,9 @@ function secSeguranca() {
   const clip = h("input", { type: "checkbox", id: "perm-clip" });
   clip.checked = cfg.allowClipboard;
   clip.onchange = () => set("allowClipboard", clip.checked);
-  const files = h("input", { type: "checkbox", disabled: "" });
+  const files = h("input", { type: "checkbox", id: "perm-files" });
+  files.checked = cfg.allowFiles;
+  files.onchange = () => set("allowFiles", files.checked);
 
   // senha de acesso não supervisionado
   const pill = h("span", { class: "pill" });
@@ -219,7 +229,7 @@ function secSeguranca() {
       perm(seeOnly, "Ver a tela", h("span", { class: "desc right" }, "Sempre")),
       perm(ctl, "Controlar mouse e teclado"),
       perm(clip, "Copiar e colar texto entre os computadores", h("span", { class: "desc right" }, "Precisa do controle ligado")),
-      perm(files, "Transferir arquivos", soon())),
+      perm(files, "Transferir arquivos", h("span", { class: "desc right" }, "Precisa do controle ligado"))),
     panel(null,
       h("div", { class: "scardhead row" },
         h("div", {}, h("h2", {}, "Acesso não supervisionado"), h("span", { class: "desc" }, "Com a senha certa, quem tem o ID entra sem ninguém aceitar.")), pill),
@@ -256,7 +266,8 @@ function secRede() {
     const v = port.value.trim();
     set("port", v === "" ? 0 : Number(v.replace(/\D/g, "")));
   };
-  const relay = h("input", { class: "sinput mono full", id: "relay", disabled: "", placeholder: "relay.exemplo.com:4001" });
+  const relay = h("input", { class: "sinput mono full", id: "relay", value: cfg.relay || "", placeholder: "/dns4/relay.exemplo.com/tcp/4001/p2p/12D3Koo...", spellcheck: "false" });
+  relay.onchange = () => set("relay", relay.value.trim());
   const sec = [
     shead("Rede", "Como este computador encontra os outros e abre a conexão direta. As mudanças desta tela valem depois de reiniciar o CDesk."),
     panel("Status",
@@ -273,7 +284,7 @@ function secRede() {
       srow("Porta de escuta", "Deixe vazio para escolher automaticamente (1024 a 65535)", port, "porta")),
     panel(null,
       h("div", { class: "scardhead row" },
-        h("div", {}, h("h2", {}, "Relay próprio"), h("span", { class: "desc" }, "Para redes com CGNAT ou NAT simétrico, onde a conexão direta não abre.")), soon()),
+        h("div", {}, h("h2", {}, "Relay próprio"), h("span", { class: "desc" }, "Para redes com CGNAT ou NAT simétrico, onde a conexão direta não abre. Use o endereço completo do relay (com /p2p/ID).")), h("span", { class: "pill soon" }, "Vale após reiniciar")),
       h("div", { class: "fields single" }, h("label", { for: "relay", class: "desc" }, "Endereço do relay"), relay)),
   ];
   setTimeout(updateNetStatus);
@@ -301,8 +312,10 @@ function secExibicao() {
       srow("Monitor mostrado", "Se o outro computador tiver mais de um monitor, escolha qual ver pelos botões numerados no topo da sessão",
         h("span", { class: "desc" }, "Na sessão"))),
     panel("Durante a sessão",
-      soonRow("Mostrar o cursor do computador remoto", "Útil quando alguém do outro lado também mexe no mouse"),
-      soonRow("Ocultar o papel de parede remoto", "Deixa a imagem mais leve em conexões lentas")),
+      srow("Mostrar o cursor do computador remoto", "Útil quando alguém do outro lado também mexe no mouse. Vale para as próximas sessões; dá para mudar na janela Exibição",
+        toggle(cfg.showCursor, "Mostrar o cursor do computador remoto", (on) => set("showCursor", on))),
+      srow("Ocultar o papel de parede remoto", "Deixa a imagem mais leve em conexões lentas; o papel de parede volta quando a sessão acaba",
+        toggle(cfg.hideWallpaper, "Ocultar o papel de parede remoto", (on) => set("hideWallpaper", on)))),
   ];
 }
 

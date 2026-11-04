@@ -6,6 +6,8 @@ export function Cancel(arg1:string):Promise<void>;
 
 export function CheckOnline(arg1:Array<string>):Promise<void>;
 
+export function CheckUpdate():Promise<main.UpdateInfo>;
+
 export function ConfigDir():Promise<string>;
 
 export function Connect(arg1:string,arg2:string,arg3:boolean):Promise<void>;
@@ -13,6 +15,14 @@ export function Connect(arg1:string,arg2:string,arg3:boolean):Promise<void>;
 export function Disconnect(arg1:string):Promise<void>;
 
 export function EndSession():Promise<void>;
+
+export function FilesCancel(arg1:string):Promise<void>;
+
+export function FilesDownload(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string):Promise<void>;
+
+export function FilesOp(arg1:string,arg2:boolean,arg3:main.FileReq):Promise<main.FileResp>;
+
+export function FilesUpload(arg1:string,arg2:string,arg3:string,arg4:Array<string>,arg5:string):Promise<void>;
 
 export function ForgetPassword(arg1:string):Promise<void>;
 
@@ -32,6 +42,8 @@ export function SaveSettings(arg1:main.Settings):Promise<void>;
 
 export function SavedPasswords():Promise<Array<string>>;
 
+export function SendChat(arg1:string,arg2:string):Promise<void>;
+
 export function SendInput(arg1:string,arg2:string):Promise<void>;
 
 export function SetActiveSession(arg1:string):Promise<void>;
@@ -39,6 +51,8 @@ export function SetActiveSession(arg1:string):Promise<void>;
 export function SetMonitor(arg1:string,arg2:number):Promise<void>;
 
 export function SetPassword(arg1:string):Promise<void>;
+
+export function SetSessionOption(arg1:string,arg2:string,arg3:boolean):Promise<void>;
 
 export function SetStartup(arg1:boolean):Promise<void>;
 

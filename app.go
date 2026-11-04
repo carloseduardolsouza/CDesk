@@ -42,7 +42,8 @@ type hello struct {
 	Name     string `json:"name"`
 	Priority string `json:"prio"`
 	FPS      int    `json:"fps"`
-	Ask      bool   `json:"ask"` // pedir permissão ao usuário do host mesmo que ele tenha senha de acesso
+	Ask      bool   `json:"ask"`    // pedir permissão ao usuário do host mesmo que ele tenha senha de acesso
+	NoWall   bool   `json:"nowall"` // esconder o papel de parede do host durante a sessão
 }
 
 // Event é um evento de input vindo do viewer. X/Y são normalizados (0..1).
@@ -54,6 +55,10 @@ type Event struct {
 	K int     `json:"k"` // keyCode (VK no Windows)
 	D int     `json:"d"` // delta do scroll
 	S string  `json:"s"` // texto da área de transferência (t = clip)
+	// t = quality: mudança de qualidade no meio da sessão (S = prioridade)
+	Adapt  *bool `json:"adapt,omitempty"`
+	Detail bool  `json:"detail,omitempty"`
+	FPS    int   `json:"fps,omitempty"`
 }
 
 // App é exposto ao frontend pelo Wails (window.go.main.App.*).
@@ -86,6 +91,12 @@ type App struct {
 	lastClip   string                  // último texto visto na área de transferência local
 	activeView string                  // aba em uso: só ela troca área de transferência
 	out        map[string]*viewSession // sessões como viewer, por ID do computador remoto (uma aba cada)
+	jobs       map[string]*job         // transferências de arquivos em andamento, por chave (files.go)
+	// janela da sessão no host (session_win.go) e o que ela mostra
+	sessWin  func(viewer, name string, since time.Time) (stop func())
+	hostChat []chatMsg
+	hostLog  []chatMsg
+	ipc      *ipcServer
 	// conexões em andamento (abrir a sessão pode levar até 1 min), para poder cancelar
 	connecting map[string]context.CancelFunc
 	// quem está online (presence.go)
@@ -101,11 +112,19 @@ func (a *App) startup(ctx context.Context) {
 	a.emit = func(name string, data ...any) { wr.EventsEmit(ctx, name, data...) }
 	a.defaultClipboard()
 	a.askFn = a.askWindow
+	a.sessWin = a.sessionWindow
 	if err := a.initP2P(); err != nil {
 		a.err = err.Error()
 	}
 	a.startTray()
 	go a.clipLoop()
+	if a.settings().CheckUpdates {
+		go func() {
+			if u, err := a.CheckUpdate(); err == nil && u.Newer {
+				a.emit("update", u.Latest, u.URL)
+			}
+		}()
+	}
 }
 
 // numID transforma o PeerID em um ID de 9 dígitos. O viewer confere esse hash no peer
@@ -163,10 +182,14 @@ func (a *App) initP2P() error {
 	}
 
 	boot := dht.GetDefaultBootstrapPeerAddrInfos()
+	relays := slices.Clone(boot) // relays para quem está atrás de NAT: os públicos e, se houver, o próprio
+	if ai, err := peer.AddrInfoFromString(a.cfg.Relay); a.cfg.Relay != "" && err == nil {
+		relays = append([]peer.AddrInfo{*ai}, relays...)
+	}
 	opts := []libp2p.Option{
 		libp2p.Identity(priv),
 		// shortcut: relays públicos do bootstrap IPFS, trocar por relays próprios/da comunidade
-		libp2p.EnableAutoRelayWithStaticRelays(boot),
+		libp2p.EnableAutoRelayWithStaticRelays(relays),
 	}
 	if a.cfg.UPnP {
 		opts = append(opts, libp2p.NATPortMap())
@@ -190,6 +213,7 @@ func (a *App) initP2P() error {
 		return err
 	}
 	a.h.SetStreamHandler(proto, a.serve)
+	a.h.SetStreamHandler(filesProto, a.serveFiles)
 	if !a.noMDNS && a.cfg.MDNS { // achar PCs na mesma rede sem depender da internet
 		if s := mdns.NewMdnsService(a.h, "cdesk", mdnsNotifee{a}); s != nil {
 			s.Start()
@@ -203,7 +227,7 @@ func (a *App) initP2P() error {
 		return err
 	}
 	go func() {
-		for _, p := range boot {
+		for _, p := range relays {
 			go a.h.Connect(a.ctx, p)
 		}
 		a.dht.Bootstrap(a.ctx)
@@ -284,6 +308,7 @@ func (a *App) EndSession() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.in != nil {
+		a.in.hostEnded.Store(true)
 		a.in.s.Reset()
 	}
 }
@@ -337,16 +362,35 @@ func (a *App) serve(s network.Stream) {
 		s.Write([]byte("OKV\n")) // só visualização
 	}
 
-	conn := &hostConn{s: s}
+	conn := &hostConn{s: s, quit: make(chan struct{})}
+	conn.ctl.Store(cfg.AllowControl) // permissões desta sessão; a janela da sessão pode mudar durante ela
+	conn.clip.Store(cfg.AllowClipboard)
+	conn.files.Store(cfg.AllowFiles)
+	name := cleanText(hi.Name, 40)
 	a.mu.Lock()
 	a.in = conn
+	a.hostChat = []chatMsg{{Who: "sys", Text: "Pedido de sessão recebido", At: nowMs()}, {Who: "sys", Text: "Sessão iniciada", At: nowMs()}}
+	a.hostLog = nil
 	a.mu.Unlock()
-	a.emit("hosting", viewer)
+	a.emit("hosting", viewer, name)
+	if hi.NoWall {
+		defer hideWallpaper()()
+	}
+	go a.hostAux(conn)
+	defer a.hostCleanup(conn)
+	if a.sessWin != nil {
+		defer a.sessWin(viewer, name, time.Now())()
+	}
 	defer func() {
 		a.mu.Lock()
 		a.in = nil
 		a.mu.Unlock()
 		a.emit("hostingEnded")
+	}()
+	defer func() {
+		if conn.lockEnd.Load() && !conn.hostEnded.Load() {
+			lockWorkstation()
+		}
 	}()
 
 	p := newPacer(hi.Priority, hi.FPS)
@@ -369,13 +413,20 @@ func (a *App) serve(s network.Stream) {
 		case e.T == "ack":
 			p.ack()
 		case e.T == "clip":
-			if cfg.AllowClipboard && cfg.AllowControl {
+			if conn.clip.Load() && conn.ctl.Load() {
 				a.setClip(e.S)
 			}
 		case e.T == "monitor": // o viewer escolheu outro monitor
 			conn.monitor.Store(int32(e.K))
 			conn.sendInfo()
-		case cfg.AllowControl:
+		case a.hostEvent(conn, e):
+		case e.T == "lockend": // o viewer pede bloquear a tela deste computador quando a sessão acabar
+			conn.lockEnd.Store(e.K == 1 && conn.ctl.Load())
+		case e.T == "quality":
+			p.configure(e.S, e.Adapt == nil || *e.Adapt, e.Detail, e.FPS)
+		case e.T == "chat":
+			a.hostChatAdd("them", e.S)
+		case conn.ctl.Load():
 			switch e.T {
 			case "kdown":
 				held[e.K] = true
@@ -515,7 +566,7 @@ func (a *App) connect(cctx context.Context, id, pw string, askPermission bool) e
 	s.SetDeadline(time.Now().Add(45 * time.Second))
 	stopCancel := context.AfterFunc(cctx, func() { s.SetDeadline(time.Now()) }) // cancelar interrompe a espera
 	cfg := a.settings()
-	hb, _ := json.Marshal(hello{PW: pw, Name: cfg.Name, Priority: cfg.Priority, FPS: cfg.FPS, Ask: askPermission})
+	hb, _ := json.Marshal(hello{PW: pw, Name: cfg.Name, Priority: cfg.Priority, FPS: cfg.FPS, Ask: askPermission, NoWall: cfg.HideWallpaper})
 	if _, err := s.Write(append(hb, '\n')); err != nil {
 		s.Reset()
 		return err
@@ -587,11 +638,40 @@ func (a *App) readFrames(id string, v *viewSession, r *bufio.Reader) {
 			}
 			continue
 		}
+		if hdr[0] == msgChat {
+			a.chatReceived(id, string(buf))
+			continue
+		}
+		switch hdr[0] {
+		case msgAudio:
+			v.audioMu.Lock()
+			v.audioBuf = append(v.audioBuf, buf...)
+			if over := len(v.audioBuf) - (audioRate*4)*2; over > 0 { // no máximo ~1 s guardado: o resto é atraso que não vale tocar
+				v.audioBuf = v.audioBuf[over:]
+			}
+			v.audioMu.Unlock()
+			continue
+		case msgCursor:
+			a.emit("cursor", id, string(buf))
+			continue
+		case msgFocus:
+			a.emit("focus", id, string(buf))
+			continue
+		case msgClipFiles: // o host copiou arquivos: só vale para a aba em uso e com a opção ligada
+			var m clipFilesMsg
+			a.mu.Lock()
+			current := a.activeView == id
+			a.mu.Unlock()
+			if current && v.fileClip.Load() && json.Unmarshal(buf, &m) == nil {
+				go a.pullFilesFromHost(id, m)
+			}
+			continue
+		}
 		if hdr[0] == msgClip { // o host copiou algo: só vale para a aba em uso
 			a.mu.Lock()
 			current := a.activeView == id
 			a.mu.Unlock()
-			if current {
+			if current && !v.noClip.Load() {
 				a.setClip(string(buf))
 			}
 			continue

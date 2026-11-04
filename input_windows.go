@@ -101,14 +101,16 @@ func inject(e Event, b image.Rectangle) {
 		setCursor.Call(uintptr(b.Min.X+int(e.X*float64(b.Dx()))), uintptr(b.Min.Y+int(e.Y*float64(b.Dy()))))
 	}
 	switch e.T {
-	case "down", "up":
+	case "down", "up", "rdown", "rup": // rdown/rup: botão sem mexer o cursor (mouse capturado)
 		if e.B >= 0 && e.B < 3 {
 			i := 0
-			if e.T == "up" {
+			if e.T == "up" || e.T == "rup" {
 				i = 1
 			}
 			mouseEvent.Call(btnFlags[e.B][i], 0, 0, 0, 0)
 		}
+	case "rel": // movimento relativo (mouse capturado)
+		mouseMoveRel(int(e.X), int(e.Y))
 	case "wheel":
 		mouseEvent.Call(0x800, 0, 0, uintptr(int32(e.D)), 0)
 	case "kdown":
@@ -119,3 +121,5 @@ func inject(e Event, b image.Rectangle) {
 		typeText(e.S)
 	}
 }
+
+var lockWorkstation = func() { user32.NewProc("LockWorkStation").Call() }

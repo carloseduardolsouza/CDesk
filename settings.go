@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 const version = "0.1.0"
@@ -25,20 +27,25 @@ type Settings struct {
 	AskSound       bool      `json:"askSound"`       // toca um som ao receber pedido
 	AllowControl   bool      `json:"allowControl"`   // false: quem se conecta só vê a tela
 	AllowClipboard bool      `json:"allowClipboard"` // copiar e colar entre os computadores
+	AllowFiles     bool      `json:"allowFiles"`     // transferir arquivos durante a sessão
 	OnlyAllowed    bool      `json:"onlyAllowed"`    // só IDs da lista Allowed podem pedir acesso
 	Allowed        []Allowed `json:"allowed"`
-	MDNS           bool      `json:"mdns"`        // achar PCs na rede local (vale após reiniciar)
-	UPnP           bool      `json:"upnp"`        // abrir portas no roteador (vale após reiniciar)
-	HolePunch      bool      `json:"holePunch"`   // atravessar NAT (vale após reiniciar)
-	Port           int       `json:"port"`        // 0 = automática (vale após reiniciar)
-	Priority       string    `json:"priority"`    // velocidade | equilibrada | qualidade
-	FPS            int       `json:"fps"`         // 5..30
-	TrayOnClose    bool      `json:"trayOnClose"` // fechar a janela esconde o CDesk na bandeja
+	MDNS           bool      `json:"mdns"`          // achar PCs na rede local (vale após reiniciar)
+	UPnP           bool      `json:"upnp"`          // abrir portas no roteador (vale após reiniciar)
+	HolePunch      bool      `json:"holePunch"`     // atravessar NAT (vale após reiniciar)
+	Port           int       `json:"port"`          // 0 = automática (vale após reiniciar)
+	Priority       string    `json:"priority"`      // velocidade | equilibrada | qualidade
+	FPS            int       `json:"fps"`           // 5..30
+	TrayOnClose    bool      `json:"trayOnClose"`   // fechar a janela esconde o CDesk na bandeja
+	CheckUpdates   bool      `json:"checkUpdates"`  // ao abrir, procurar versão nova
+	ShowCursor     bool      `json:"showCursor"`    // sessões novas já mostram o cursor do computador remoto
+	HideWallpaper  bool      `json:"hideWallpaper"` // pedir ao host para esconder o papel de parede na sessão
+	Relay          string    `json:"relay"`         // relay próprio (endereço completo, com /p2p/ID); vale após reiniciar
 }
 
 func defaultSettings() Settings {
 	return Settings{
-		AskSeconds: 30, AskOnTop: true, AskSound: true, AllowControl: true, AllowClipboard: true,
+		AskSeconds: 30, AskOnTop: true, AskSound: true, AllowControl: true, AllowClipboard: true, AllowFiles: true,
 		Allowed: []Allowed{},
 		MDNS:    true, UPnP: true, HolePunch: true,
 		Priority: "equilibrada", FPS: 15, TrayOnClose: true,
@@ -102,6 +109,10 @@ func (a *App) SaveSettings(s Settings) error {
 	}
 	if s.FPS < 5 || s.FPS > 30 {
 		return fmt.Errorf("Quadros por segundo precisa ficar entre 5 e 30.")
+	}
+	s.Relay = strings.TrimSpace(s.Relay)
+	if _, err := peer.AddrInfoFromString(s.Relay); s.Relay != "" && err != nil {
+		return fmt.Errorf("Endereço do relay inválido. Use o endereço completo, como /dns4/relay.exemplo.com/tcp/4001/p2p/12D3Koo...")
 	}
 	if s.Port != 0 && (s.Port < 1024 || s.Port > 65535) {
 		return fmt.Errorf("A porta precisa ficar entre 1024 e 65535, ou vazia para automática.")

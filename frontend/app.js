@@ -143,6 +143,11 @@ const renderTabs = () => {
 
 const show = (id) => {
   releaseKeys(); // solta o que ficou apertado na sessão que está saindo de cena
+  document.exitPointerLock(); // o mouse capturado volta para a janela
+  if (chatKey && chatKey !== id && chatKey !== hostingWith) closeChat(); // o chat é da sessão em que foi aberto
+  closeDisp();
+  closeOpts();
+  hideFiles(id);
   active = id;
   const s = sessions.get(id);
   const live = !!s && s.state === "live";
@@ -150,6 +155,7 @@ const show = (id) => {
   $("settings").hidden = id !== "settings";
   $("connecting").hidden = !s || live;
   $("viewer").hidden = !live;
+  $("sessbar").hidden = !live;
   app().SetActiveSession(live ? id : ""); // só a aba em uso troca área de transferência
   if (live) {
     setScreen(s.blob);
@@ -165,6 +171,8 @@ const show = (id) => {
 const closeTab = (id) => {
   saveThumb(id, sessions.get(id));
   sessions.delete(id); // antes do Disconnect, para o evento "closed" ser ignorado
+  closeFiles(id);
+  audioStop(id);
   app().Cancel(id); // se ainda estava conectando
   app().Disconnect(id);
   if (active === id) show("home"); else renderTabs();
@@ -176,24 +184,18 @@ const closeSettings = () => {
   if (active === "settings") show("home"); else renderTabs();
 };
 
-// Barra da sessão: aviso de só visualização e, com mais de um monitor, um botão numerado por monitor.
+// Barra da sessão: botões Chat, Arquivos e Exibição (monitores ficam na janela Exibição, display.js).
 const renderBar = () => {
   const s = sessions.get(active);
   if (!s) return;
-  const multi = (s.monitors || 1) > 1;
-  $("sessbar").hidden = !multi && !s.viewOnly;
+  $("sessbar").hidden = false;
+  $("filesBtn").hidden = !!s.viewOnly;
   $("viewOnly").hidden = !s.viewOnly;
-  const btns = [];
-  for (let i = 0; multi && i < s.monitors; i++) {
-    btns.push(h("button", {
-      class: "mon" + (i === s.monitor ? " on" : ""),
-      "aria-pressed": String(i === s.monitor),
-      "aria-label": "Monitor " + (i + 1),
-      title: "Monitor " + (i + 1),
-      onclick: () => { s.monitor = i; renderBar(); app().SetMonitor(active, i); },
-    }, String(i + 1)));
-  }
-  $("monBtns").replaceChildren(...(multi ? [icon("monitor", 16)] : []), ...btns);
+  applyDisp(s);
+  if (!s.fxInit) { s.fxInit = true; sendFeat(s); } // pede ao host o cursor e a janela em foco
+  placeCursor();
+  renderDispPanel();
+  renderChatBtns();
 };
 
 // ---------- lista de computadores ----------
@@ -322,6 +324,7 @@ const renderState = () => {
   $("net").setAttribute("aria-label", ok ? "Online, pronto para conexões" : "Conectando à rede");
   $("stateDot").className = "sdot" + (hostingWith ? " busy" : online ? " ok" : "");
   $("end").hidden = !hostingWith;
+  renderChatBtns();
   $("stateText").textContent = hostingWith
     ? `${fmtId(hostingWith)} está controlando este computador.`
     : online ? "Pronto. Este computador pode receber conexões." : "Conectando à rede...";
@@ -411,9 +414,12 @@ async function openSession(id, pw = "", askPermission = false, remember = false)
   if (!s) { s = { logs: [] }; sessions.set(id, s); }
   if (s.state === "live") { show(id); return; }
   Object.assign(s, { state: "connecting", step: 0, text: "", error: "" });
+  Object.assign(s, { disp: undefined, opts: undefined, fxInit: false, cur: null }); // o host novo começa do zero: as escolhas da sessão anterior não valem
+  chatNote(id, "Pedido de sessão enviado");
   show(id);
   try {
     await app().Connect(id, pw, askPermission);
+    chatNote(id, "Sessão iniciada");
     if (remember && pw) { await app().SavePassword(id, pw); refreshSaved(); }
     s.state = "live";
     upsert(id, { last: Date.now() });
@@ -479,6 +485,8 @@ window.addEventListener("load", async () => {
     if (!s) return; // já fechada pelo usuário
     saveThumb(id, s);
     sessions.delete(id);
+    closeFiles(id);
+    audioStop(id);
     if (active === id) show("home"); else renderTabs();
     say(`Sessão com ${nameOf(id)} encerrada.`);
   });
@@ -486,6 +494,12 @@ window.addEventListener("load", async () => {
     const s = sessions.get(id);
     if (s && mode === "view") { s.viewOnly = true; if (id === active) renderBar(); }
   });
+  ev.EventsOn("fileProgress", onFileProgress);
+  ev.EventsOn("chat", onChat);
+  ev.EventsOn("cursor", onRemoteCursor);
+  ev.EventsOn("focus", onRemoteFocus);
+  ev.EventsOn("fileClip", onFileClip);
+  ev.EventsOn("update", (v, url) => say(`Versão ${v} do CDesk disponível: ${url}`));
   ev.EventsOn("presence", (id, isOnline) => { presence.set(id, isOnline); applyPresence(id); });
   ev.EventsOn("monitors", (id, count, current) => { // o computador remoto diz quantos monitores tem
     const s = sessions.get(id);
@@ -508,12 +522,18 @@ window.addEventListener("load", async () => {
 
 // ---------- mouse e teclado da sessão ativa ----------
 
-const send = (ev) => app().SendInput(active, JSON.stringify(ev));
+const INPUT = new Set(["move", "down", "up", "wheel", "kdown", "char", "rel", "rdown", "rup"]); // ficam de fora quando "Controlar teclado e mouse" está desligado (options.js); kup passa para soltar teclas
+const send = (ev) => {
+  const o = (sessions.get(active) || {}).opts;
+  if (o && !o.control && INPUT.has(ev.t)) return;
+  app().SendInput(active, JSON.stringify(ev));
+};
 const s = $("screen");
 const clamp = (v) => Math.min(1, Math.max(0, v));
 // object-fit: contain deixa faixas pretas, então desconta a sobra para mapear o pixel certo.
 const pos = (e) => {
   const r = s.getBoundingClientRect();
+  if (viewMode() !== "reduzido") return { x: clamp((e.clientX - r.left) / r.width), y: clamp((e.clientY - r.top) / r.height) }; // a imagem ocupa o elemento inteiro
   const k = Math.min(r.width / s.naturalWidth, r.height / s.naturalHeight);
   const w = s.naturalWidth * k, hh = s.naturalHeight * k;
   return {
@@ -521,9 +541,28 @@ const pos = (e) => {
     y: clamp((e.clientY - r.top - (r.height - hh) / 2) / hh),
   };
 };
-s.onmousemove = (e) => { if (Date.now() - last > 30) { last = Date.now(); send({ t: "move", ...pos(e) }); } };
-s.onmousedown = (e) => { e.preventDefault(); $("viewer").focus({ preventScroll: true }); send({ t: "down", b: e.button, ...pos(e) }); };
-s.onmouseup = (e) => send({ t: "up", b: e.button, ...pos(e) });
+// Lembra onde o viewer mexeu o mouse por último, para o cursor "Automático" distinguir quem mexeu.
+const noteSent = (p) => {
+  const ss = sessions.get(active);
+  if (ss) { ss.sentX = p.x; ss.sentY = p.y; ss.sentAt = Date.now(); }
+  return p;
+};
+const captured = () => document.pointerLockElement === s;
+// pixels do computador remoto por pixel desta tela, para o movimento relativo ter o mesmo tamanho lá
+const remoteScale = () => { const r = shownRect(); return s.naturalWidth ? s.naturalWidth / r.width : 1; };
+const wantCapture = () => { const ss = sessions.get(active); return !!(ss && ss.disp && ss.disp.capture); };
+s.onmousemove = (e) => {
+  if (captured()) { const k = remoteScale(); send({ t: "rel", x: e.movementX * k, y: e.movementY * k }); return; }
+  if (Date.now() - last > 30) { last = Date.now(); send({ t: "move", ...noteSent(pos(e)) }); }
+};
+s.onmousedown = (e) => {
+  e.preventDefault();
+  $("viewer").focus({ preventScroll: true });
+  if (captured()) { send({ t: "rdown", b: e.button }); return; }
+  if (wantCapture()) { s.requestPointerLock(); return; } // o primeiro clique só prende o mouse na tela
+  send({ t: "down", b: e.button, ...noteSent(pos(e)) });
+};
+s.onmouseup = (e) => send(captured() ? { t: "rup", b: e.button } : { t: "up", b: e.button, ...pos(e) });
 s.oncontextmenu = (e) => e.preventDefault();
 s.onwheel = (e) => send({ t: "wheel", d: -Math.sign(e.deltaY) * 120 });
 // teclado: veja keys.js

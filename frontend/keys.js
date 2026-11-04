@@ -24,7 +24,7 @@ function keyMessage(e, t) {
 
 // Com uma janela aberta (ex.: senha), as teclas são da janela, não do computador remoto.
 function remoteKey(e, t) {
-  if ((sessions.get(active) || {}).state !== "live" || document.querySelector("dialog[open]")) return;
+  if ((sessions.get(active) || {}).state !== "live" || document.querySelector("dialog[open]") || e.target.closest?.("#chatPanel, #dispPanel")) return;
   e.preventDefault();
   const m = keyMessage(e, t);
   if (!m) return;

@@ -20,33 +20,53 @@ const maxInflight = 2 // quadros enviados e ainda não confirmados pelo viewer
 // excesso vira fila nos buffers, que aparece como lentidão cada vez maior. Cada quadro só sai
 // quando o viewer confirmou um anterior, e o tempo de confirmação ajusta a qualidade da imagem.
 type pacer struct {
-	tokens  chan struct{}
-	mu      sync.Mutex
-	sentAt  []time.Time
-	quality int // JPEG atual, sempre entre minQ e maxQ
-	minQ    int // piso e teto da qualidade (dependem da prioridade escolhida pelo viewer)
-	maxQ    int
-	every   time.Duration // intervalo mínimo entre quadros (limite de quadros por segundo)
+	tokens   chan struct{}
+	mu       sync.Mutex
+	sentAt   []time.Time
+	quality  int // JPEG atual, sempre entre minQ e maxQ
+	minQ     int // piso e teto da qualidade (dependem da prioridade escolhida pelo viewer)
+	maxQ     int
+	every    time.Duration // intervalo mínimo entre quadros (limite de quadros por segundo)
+	adaptive bool          // false: a qualidade fica fixa, sem ajuste pela velocidade da conexão
 }
 
 // newPacer monta o controle de envio para a prioridade (velocidade|equilibrada|qualidade) e o
 // limite de quadros por segundo pedidos pelo viewer. Valores desconhecidos viram o padrão.
 func newPacer(priority string, fps int) *pacer {
-	p := &pacer{tokens: make(chan struct{}, maxInflight), quality: 70, minQ: 35, maxQ: 90}
+	p := &pacer{tokens: make(chan struct{}, maxInflight), adaptive: true}
+	p.configure(priority, true, false, fps)
+	for i := 0; i < maxInflight; i++ {
+		p.tokens <- struct{}{}
+	}
+	return p
+}
+
+// configure aplica prioridade, adaptação automática, "preservar detalhes" e limite de quadros por
+// segundo; vale também no meio da sessão (o viewer muda na janela Exibição).
+func (p *pacer) configure(priority string, adaptive, detail bool, fps int) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.quality, p.minQ, p.maxQ = 70, 35, 90
 	switch priority {
 	case "velocidade":
 		p.quality, p.minQ, p.maxQ = 50, 30, 70
 	case "qualidade":
 		p.quality, p.minQ, p.maxQ = 85, 60, 95
 	}
+	if detail {
+		p.quality, p.minQ, p.maxQ = max(p.quality, 80), max(p.minQ, 75), 95
+	}
+	p.adaptive = adaptive
 	if fps < 5 || fps > 30 {
 		fps = 15
 	}
 	p.every = time.Second / time.Duration(fps)
-	for i := 0; i < maxInflight; i++ {
-		p.tokens <- struct{}{}
-	}
-	return p
+}
+
+func (p *pacer) interval() time.Duration {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.every
 }
 
 func (p *pacer) release() {
@@ -63,6 +83,7 @@ func (p *pacer) ack() {
 		rtt := time.Since(p.sentAt[0])
 		p.sentAt = p.sentAt[1:]
 		switch {
+		case !p.adaptive:
 		case rtt > 350*time.Millisecond:
 			p.quality = max(p.minQ, p.quality-10)
 		case rtt < 120*time.Millisecond:
@@ -91,7 +112,7 @@ func sendFrames(c *hostConn, p *pacer) {
 		case <-p.tokens:
 		case <-time.After(2 * time.Second): // sem confirmação por 2 s: segue assim mesmo, não trava
 		}
-		time.Sleep(p.every - time.Since(last)) // limite de quadros por segundo (negativo = não espera)
+		time.Sleep(p.interval() - time.Since(last)) // limite de quadros por segundo (negativo = não espera)
 		last = time.Now()
 		mon := c.currentMonitor()
 		img, err := screenshot.CaptureDisplay(mon)
@@ -128,9 +149,13 @@ func putU32(b []byte, v uint32) {
 
 // viewSession é uma sessão como viewer (uma aba).
 type viewSession struct {
-	s     network.Stream
-	wmu   sync.Mutex   // serializa as escritas (input do usuário e confirmações)
-	frame atomic.Value // []byte: último JPEG recebido
+	s        network.Stream
+	wmu      sync.Mutex   // serializa as escritas (input do usuário e confirmações)
+	frame    atomic.Value // []byte: último JPEG recebido
+	noClip   atomic.Bool  // o usuário desligou a sincronização do texto copiado nesta sessão
+	fileClip atomic.Bool  // sincronizar arquivos copiados (opção do viewer)
+	audioMu  sync.Mutex
+	audioBuf []byte // PCM recebido e ainda não tocado (o frontend busca em /audio/<id>)
 }
 
 func (v *viewSession) write(b []byte) {
@@ -144,6 +169,23 @@ func (v *viewSession) write(b []byte) {
 type frameHandler struct{ a *App }
 
 func (f frameHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if aid, ok := strings.CutPrefix(r.URL.Path, "/audio/"); ok { // PCM s16 estéreo a audioRate Hz, o que chegou desde a última busca
+		f.a.mu.Lock()
+		v := f.a.out[aid]
+		f.a.mu.Unlock()
+		if v == nil {
+			http.NotFound(w, r)
+			return
+		}
+		v.audioMu.Lock()
+		b := v.audioBuf
+		v.audioBuf = nil
+		v.audioMu.Unlock()
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Cache-Control", "no-store")
+		w.Write(b)
+		return
+	}
 	id, ok := strings.CutPrefix(r.URL.Path, "/frame/")
 	f.a.mu.Lock()
 	v := f.a.out[id]

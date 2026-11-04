@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CDesk - Sessão</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="session.css">
+</head>
+<body class="sw">
+<aside class="sw-left">
+  <div class="sw-who">
+    <div class="sw-avatar" aria-hidden="true">
+      <svg width="64" height="64" viewBox="0 0 64 64"><path d="M48 12H19a9 9 0 0 0-9 9v16a9 9 0 0 0 9 9h29" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><path d="M23 56h16" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round"/><path d="M33 19L49 28.5L42 30.5L46.5 38.5L43 40.3L38.6 32.4L33 36.5Z" fill="#fff" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="sw-info">
+      <b id="swName">-</b>
+      <span id="swId" class="mono"></span>
+      <span id="swTime">Conectado 00:00:00</span>
+    </div>
+  </div>
+
+  <h2>Permissões</h2>
+  <div class="sw-perms" role="group" aria-label="Permissões do computador conectado">
+    <button class="perm on" data-key="ctl" aria-pressed="true" title="Controlar mouse e teclado">
+      <svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="14" height="9" rx="1.5"/><path d="M5 9h.01M8 9h.01M11 9h.01M5 12h6"/><rect x="16" y="11" width="6" height="10" rx="3"/><path d="M19 11v4"/></svg>
+      <span>Controle</span>
+    </button>
+    <button class="perm on" data-key="clip" aria-pressed="true" title="Copiar e colar entre os computadores">
+      <svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 11h6M9 15h6"/></svg>
+      <span>Área de transferência</span>
+    </button>
+    <button class="perm on" data-key="files" aria-pressed="true" title="Transferir arquivos">
+      <svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 17v-6M9.5 13.5L12 11l2.5 2.5"/></svg>
+      <span>Arquivos</span>
+    </button>
+  </div>
+
+  <button id="swEnd" class="sw-end">Desconectar</button>
+</aside>
+
+<main class="sw-right">
+  <div class="sw-tabs" role="tablist">
+    <button id="tabChat" role="tab" aria-selected="true" aria-controls="paneChat">Chat<span id="swUnread" class="ubadge" hidden></span></button>
+    <button id="tabFiles" role="tab" aria-selected="false" aria-controls="paneFiles">Transferência de Arquivos</button>
+  </div>
+  <section id="paneChat" role="tabpanel" class="sw-pane">
+    <div id="swMsgs" class="cmsgs" role="log" aria-live="polite"></div>
+    <div class="cform">
+      <textarea id="swInput" rows="2" maxlength="2000" placeholder="Mensagem" aria-label="Mensagem"></textarea>
+      <button id="swSend" class="csend" aria-label="Enviar mensagem" title="Enviar">
+        <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
+      </button>
+    </div>
+  </section>
+  <section id="paneFiles" role="tabpanel" class="sw-pane" hidden>
+    <div id="swLog" class="cmsgs"></div>
+  </section>
+</main>
+<script src="session.js"></script>
+</body>
+</html>
