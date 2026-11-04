@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"hash/crc32"
+	"image"
 	"image/jpeg"
 	"net/http"
 	"strings"
@@ -14,7 +15,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/network"
 )
 
-const maxInflight = 2 // quadros enviados e ainda não confirmados pelo viewer
+const maxInflight = 4 // quadros enviados e ainda não confirmados pelo viewer; com 100 ms de ping, 2 limitariam a 20 quadros por segundo
 
 // pacer controla o envio de quadros do host. Sem isso o host manda mais do que a rede aguenta e o
 // excesso vira fila nos buffers, que aparece como lentidão cada vez maior. Cada quadro só sai
@@ -101,41 +102,108 @@ func (p *pacer) sent() int {
 	return p.quality
 }
 
+// shot é uma captura da tela e o monitor de onde veio.
+type shot struct {
+	img *image.RGBA
+	mon int
+}
+
+// captureLoop captura a tela no ritmo do limite de quadros sem esperar a codificação do quadro anterior. A captura
+// (GDI) leva ~30 ms e a codificação ~25 ms: em série davam ~18 quadros por segundo, sobrepostas passam de 30. Guarda
+// só a captura mais nova; as que o codificador não alcançou são descartadas.
+func captureLoop(c *hostConn, p *pacer, out chan shot, idle *atomic.Bool, done <-chan struct{}) {
+	var last time.Time
+	for {
+		wait := p.interval() - time.Since(last)
+		if idle.Load() {
+			wait = max(wait, 100*time.Millisecond) // tela parada: não captura a 30 Hz à toa
+		}
+		select {
+		case <-done:
+			return
+		case <-time.After(wait):
+		}
+		last = time.Now()
+		mon := c.currentMonitor()
+		img, err := screenshot.CaptureDisplay(mon)
+		if err != nil {
+			select {
+			case <-done:
+				return
+			case <-time.After(100 * time.Millisecond):
+			}
+			continue
+		}
+		select { // fica só a mais nova
+		case <-out:
+		default:
+		}
+		select {
+		case out <- shot{img, mon}:
+		default:
+		}
+	}
+}
+
 // sendFrames termina quando a escrita falha (viewer saiu e o stream foi fechado).
 func sendFrames(c *hostConn, p *pacer) {
+	shots := make(chan shot, 1)
+	var idle atomic.Bool
+	done := make(chan struct{})
+	defer close(done)
+	go captureLoop(c, p, shots, &idle, done)
+
 	var buf bytes.Buffer
 	var prev uint32
+	var enc deltaEncoder
 	lastMon := -1
-	var last time.Time
 	for {
 		select {
 		case <-p.tokens:
 		case <-time.After(2 * time.Second): // sem confirmação por 2 s: segue assim mesmo, não trava
 		}
-		time.Sleep(p.interval() - time.Since(last)) // limite de quadros por segundo (negativo = não espera)
-		last = time.Now()
-		mon := c.currentMonitor()
-		img, err := screenshot.CaptureDisplay(mon)
-		if err != nil {
+		var s shot
+		select {
+		case s = <-shots:
+		case <-time.After(2 * time.Second): // nenhuma captura (monitor indisponível): tenta de novo
 			p.release()
-			time.Sleep(100 * time.Millisecond)
 			continue
 		}
-		if sum := crc32.ChecksumIEEE(img.Pix); sum == prev && mon == lastMon { // tela parada: não manda nada
+		img, mon := s.img, s.mon
+		var rects []image.Rectangle // vazio: quadro inteiro
+		if c.tiles {
+			var same bool
+			if rects, same = enc.next(img, mon); same { // tela parada: não manda nada
+				idle.Store(true)
+				p.release()
+				continue
+			}
+		} else if sum := crc32.ChecksumIEEE(img.Pix); sum == prev && mon == lastMon {
+			idle.Store(true)
 			p.release()
-			time.Sleep(100 * time.Millisecond)
 			continue
 		} else {
 			prev, lastMon = sum, mon
 		}
-		buf.Reset()
-		buf.Write([]byte{msgFrame, 0, 0, 0, 0})
-		if jpeg.Encode(&buf, img, &jpeg.Options{Quality: p.sent()}) != nil {
+		idle.Store(false)
+
+		var err error
+		if rects != nil {
+			err = writeTiles(&buf, img, rects, p.sent())
+		} else {
+			buf.Reset()
+			buf.Write([]byte{msgFrame, 0, 0, 0, 0})
+			err = jpeg.Encode(&buf, img, &jpeg.Options{Quality: p.sent()})
+		}
+		if err != nil {
+			enc.reset() // o viewer não recebeu esta mudança: o próximo vai inteiro
 			p.release()
 			continue
 		}
 		b := buf.Bytes()
-		putU32(b[1:], uint32(len(b)-headerBytes))
+		if rects == nil {
+			putU32(b[1:], uint32(len(b)-headerBytes))
+		}
 		if err := c.write(b); err != nil {
 			c.s.Close()
 			return
@@ -152,6 +220,12 @@ type viewSession struct {
 	s        network.Stream
 	wmu      sync.Mutex   // serializa as escritas (input do usuário e confirmações)
 	frame    atomic.Value // []byte: último JPEG recebido
+	cmu      sync.Mutex   // protege key, canvas e dirty (a leitura da rede escreve; o frontend lê em latest)
+	emu      sync.Mutex   // uma codificação de latest por vez
+	key      []byte       // último quadro inteiro recebido; base para os blocos (msgTiles)
+	canvas   *image.RGBA  // a tela remontada a partir de key e dos blocos; nil até chegar o primeiro bloco
+	dirty    bool         // chegaram blocos que ainda não viraram JPEG
+	snap     *image.RGBA  // cópia do canvas usada na codificação
 	noClip   atomic.Bool  // o usuário desligou a sincronização do texto copiado nesta sessão
 	fileClip atomic.Bool  // sincronizar arquivos copiados (opção do viewer)
 	audioMu  sync.Mutex
@@ -194,7 +268,7 @@ func (f frameHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	b, _ := v.frame.Load().([]byte)
+	b := v.latest()
 	if b == nil {
 		http.NotFound(w, r)
 		return

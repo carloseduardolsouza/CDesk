@@ -163,6 +163,7 @@ export namespace main {
 	    showCursor: boolean;
 	    hideWallpaper: boolean;
 	    relay: string;
+	    useServer: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Settings(source);
@@ -190,6 +191,7 @@ export namespace main {
 	        this.showCursor = source["showCursor"];
 	        this.hideWallpaper = source["hideWallpaper"];
 	        this.relay = source["relay"];
+	        this.useServer = source["useServer"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

@@ -1,0 +1,19 @@
+[Unit]
+Description=CDesk server (relay + diretório + painel)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=cdesk
+ExecStart=/opt/cdesk/cdesk-server -data /var/lib/cdesk -announce /dns4/relay.exemplo.com/tcp/4001
+Restart=always
+RestartSec=3
+StateDirectory=cdesk
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

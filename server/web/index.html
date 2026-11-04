@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CDesk Servidor</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Pixelify+Sans:wght@500;700&display=swap" rel="stylesheet">
+<style>
+/* mesmo visual do site (docs/index.html) */
+:root{
+  --bg:#F7F5F0;--bg2:#EEEAE1;--card:#FFFFFF;--ink:#16181F;--ink2:#474B57;--ink3:#6B6F7B;
+  --line:rgba(22,24,31,.1);--sky:#CDE5F4;--sky2:#E4EFF4;
+  --accent:#2563EB;--accent2:#F08A3C;--ok:#1FB46B;--bad:#E5484D;
+  --shadow:0 5px 0 var(--ink);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0E1016;--bg2:#151821;--card:#181B24;--ink:#F2F1EC;--ink2:#B9BCC6;--ink3:#8D919D;
+  --line:rgba(255,255,255,.09);--sky:#070A18;--sky2:#0B0F20;--accent:#5B8CFF;
+}}
+:root[data-theme="dark"]{
+  --bg:#0E1016;--bg2:#151821;--card:#181B24;--ink:#F2F1EC;--ink2:#B9BCC6;--ink3:#8D919D;
+  --line:rgba(255,255,255,.09);--sky:#070A18;--sky2:#0B0F20;--accent:#5B8CFF;
+}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:linear-gradient(var(--sky),var(--sky2) 260px,var(--bg) 520px) no-repeat,var(--bg);color:var(--ink);font:15px/1.5 'Bricolage Grotesque',system-ui,'Segoe UI',sans-serif;overflow-x:hidden;transition:background .4s,color .4s}
+.px,td:first-child,header small,.stats b{font-family:'Pixelify Sans',ui-monospace,Consolas,monospace}
+
+/* céu */
+#sky{position:absolute;inset:0 0 auto;height:480px;overflow:hidden;pointer-events:none;z-index:-1}
+.star{position:absolute;width:3px;height:3px;background:var(--ink);opacity:.5;animation:twinkle 3s infinite}
+.cloud{position:absolute;height:22px;border-radius:12px;background:var(--card);opacity:.8;animation:drift linear infinite}
+
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;padding:0 24px;height:64px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);background:color-mix(in srgb,var(--bg) 80%,transparent);border-bottom:1px solid var(--line)}
+header h1{font-size:20px;font-weight:800;letter-spacing:-.03em;margin:0;flex:1;display:flex;align-items:center;gap:10px}
+header h1 span,.brand span{color:var(--accent2)}
+header small{color:var(--ink2);font-size:13px;padding:5px 12px;border:1.5px solid var(--ink);border-radius:999px;background:var(--card)}
+.theme{width:38px;height:38px;border-radius:10px;border:1.5px solid var(--ink);background:var(--card);color:var(--ink);cursor:pointer;font-size:16px;transition:transform .15s}
+.theme:hover{transform:rotate(-12deg)}
+
+nav{display:flex;gap:10px;flex-wrap:wrap;max-width:1080px;margin:28px auto 0;padding:0 24px}
+nav button{display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border-radius:12px;border:2px solid var(--ink);background:var(--card);color:var(--ink);font:inherit;font-weight:700;cursor:pointer;box-shadow:0 4px 0 var(--ink);transition:transform .15s,box-shadow .15s,background .2s,color .2s}
+nav button:hover{transform:translateY(2px);box-shadow:0 2px 0 var(--ink)}
+nav button.on{background:var(--accent);color:#fff;transform:translateY(4px);box-shadow:0 0 0 var(--ink)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--ok);animation:pulse 1.8s infinite}
+
+main{padding:24px 24px 60px;max-width:1080px;margin:0 auto}
+/* anima a seção ao trocar de aba, não os cards (o "Ao vivo" é redesenhado a cada evento) */
+section:not(.hide){animation:rise .5s cubic-bezier(.2,.8,.2,1)}
+.card{background:var(--card);border:2px solid var(--ink);border-radius:18px;padding:22px;margin-bottom:20px;box-shadow:var(--shadow)}
+.card .card{background:var(--bg2);box-shadow:0 3px 0 var(--ink);border-radius:14px;margin:0 0 14px;padding:16px}
+h2{font-size:22px;font-weight:800;letter-spacing:-.03em;margin:0 0 14px}
+p{margin:0 0 14px}
+
+table{width:100%;border-collapse:separate;border-spacing:0}
+th,td{text-align:left;padding:11px 10px;border-bottom:1px solid var(--line)}
+th{color:var(--accent2);font-family:'Pixelify Sans',monospace;font-weight:500;font-size:13px;letter-spacing:.06em;text-transform:uppercase;border-bottom:2px solid var(--ink)}
+tbody tr{transition:background .15s}
+tbody tr:hover{background:var(--bg2)}
+tbody tr:last-child td{border-bottom:0}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+
+input,select{background:var(--card);color:var(--ink);border:2px solid var(--ink);border-radius:10px;padding:8px 12px;font:inherit;transition:box-shadow .15s,transform .15s}
+input:focus,select:focus{outline:0;box-shadow:0 3px 0 var(--accent);transform:translateY(-1px)}
+input[type=number]{width:130px}
+input[type=checkbox]{appearance:none;-webkit-appearance:none;width:44px;height:26px;padding:0;border-radius:999px;background:var(--bg2);position:relative;cursor:pointer;flex:none}
+input[type=checkbox]::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;border:2px solid var(--ink);background:var(--card);transition:transform .25s cubic-bezier(.2,.8,.2,1)}
+input[type=checkbox]:checked{background:var(--ok)}
+input[type=checkbox]:checked::after{transform:translateX(18px)}
+label{display:inline-flex;flex-direction:column;gap:5px;color:var(--ink2);font-size:13px;font-weight:600;margin:0 12px 12px 0}
+
+button.b,button.d{font:inherit;font-weight:800;cursor:pointer;border:2px solid var(--ink);transition:transform .15s,box-shadow .15s,background .2s}
+button.b{background:var(--accent);color:#fff;padding:9px 18px;border-radius:12px;box-shadow:0 4px 0 var(--ink)}
+button.b:hover{transform:translateY(2px);box-shadow:0 2px 0 var(--ink)}
+button.b:active{transform:translateY(4px);box-shadow:0 0 0 var(--ink)}
+button.d{background:var(--card);color:var(--bad);padding:5px 12px;border-radius:10px;font-size:13px;box-shadow:0 3px 0 var(--ink)}
+button.d:hover{background:var(--bad);color:#fff;transform:translateY(1px);box-shadow:0 2px 0 var(--ink)}
+button.d:active{transform:translateY(3px);box-shadow:0 0 0 var(--ink)}
+button:focus-visible,.theme:focus-visible{outline:3px solid var(--accent2);outline-offset:2px}
+.mut{color:var(--ink3)} .err{color:var(--bad);min-height:1.4em;font-size:14px;font-weight:600} .ok{color:var(--ok);font-weight:700}
+.ok,.err{animation:fade .3s}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:18px;margin-bottom:22px}
+.stats .card{margin:0;color:var(--ink2);font-weight:600;transition:transform .25s,box-shadow .25s}
+.stats .card:hover{transform:translateY(-6px) rotate(-.6deg);box-shadow:0 11px 0 var(--ink)}
+.stats .card:nth-child(even):hover{transform:translateY(-6px) rotate(.6deg)}
+.stats b{display:block;font-size:40px;font-weight:700;line-height:1.1;color:var(--ink);font-variant-numeric:tabular-nums}
+.stats .card:first-child b{color:var(--accent)}
+.stats .card:last-child b{color:var(--accent2)}
+.bar{height:6px;border-radius:3px;background:var(--bg2);overflow:hidden;min-width:70px}
+.bar i{display:block;height:100%;background:var(--accent)}
+
+#login{max-width:400px;margin:14vh auto 0;padding:32px;box-shadow:0 10px 0 var(--ink);animation:float 7s ease-in-out infinite,rise .6s cubic-bezier(.2,.8,.2,1)}
+#login .brand{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+#login .brand h2{margin:0;font-size:28px}
+#login p{color:var(--ink2);margin-bottom:22px}
+#login input{width:100%;margin-bottom:12px;padding:11px 14px}
+#login button.b{width:100%;padding:12px;font-size:16px}
+#login .theme{margin-left:auto}
+.hide{display:none!important}
+.tbl{overflow-x:auto}
+
+@keyframes rise{from{opacity:0;transform:translateY(16px)}}
+@keyframes fade{from{opacity:0}}
+@keyframes twinkle{0%,100%{opacity:.5}50%{opacity:.05}}
+@keyframes drift{from{transform:translateX(-25vw)}to{transform:translateX(125vw)}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(31,180,107,.6)}70%,100%{box-shadow:0 0 0 9px rgba(31,180,107,0)}}
+@media (max-width:600px){header{padding:0 16px}header small{display:none}nav{padding:0 16px;margin-top:20px}main{padding:20px 16px 48px}#login{margin:8vh 16px 0}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="sky" aria-hidden="true"></div>
+<div id="login" class="card hide">
+  <div class="brand"><svg width="40" height="40" viewBox="0 0 32 32" aria-hidden="true"><rect x="1.5" y="4" width="29" height="19" rx="4" fill="var(--accent)" stroke="var(--ink)" stroke-width="2.5"/><path d="M11 28h10M16 23v5" stroke="var(--ink)" stroke-width="2.5" stroke-linecap="round"/><path d="M10 14h12m-4-4 4 4-4 4" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg><h2>CDesk <span>Servidor</span></h2><button class="theme" type="button" aria-label="Alternar tema claro/escuro">◐</button></div>
+  <p class="mut">Entre para gerenciar o servidor de relay.</p>
+  <form id="lf">
+    <input id="lu" placeholder="Usuário" autocomplete="username" value="admin" aria-label="Usuário">
+    <input id="lp" type="password" placeholder="Senha" autocomplete="current-password" aria-label="Senha">
+    <div class="err" id="le" role="alert"></div>
+    <button class="b" type="submit">Entrar</button>
+  </form>
+</div>
+
+<div id="app" class="hide">
+  <header><h1><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect x="1.5" y="4" width="29" height="19" rx="4" fill="var(--accent)" stroke="var(--ink)" stroke-width="2.5"/><path d="M11 28h10M16 23v5" stroke="var(--ink)" stroke-width="2.5" stroke-linecap="round"/><path d="M10 14h12m-4-4 4 4-4 4" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>CDesk <span>Servidor</span></h1><small id="srv"></small><button class="theme" type="button" aria-label="Alternar tema claro/escuro">◐</button><button class="d" id="out">Sair</button></header>
+  <nav id="tabs"></nav>
+  <main>
+    <section id="t-live"></section>
+    <section id="t-limits" class="hide"></section>
+    <section id="t-acl" class="hide"></section>
+    <section id="t-usage" class="hide"></section>
+    <section id="t-account" class="hide"></section>
+  </main>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+// tema (mesma chave do site)
+try { const t = localStorage.getItem('cdesk-theme'); if (t) document.documentElement.dataset.theme = t; } catch {}
+document.querySelectorAll('.theme').forEach(b => b.onclick = () => {
+  const t = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() === '#0E1016' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = t;
+  try { localStorage.setItem('cdesk-theme', t); } catch {}
+});
+// céu: estrelas e nuvens
+for (let i = 0; i < 30; i++) $('sky').append(Object.assign(document.createElement('i'), {className: 'star', style: `left:${Math.random() * 100}%;top:${Math.random() * 70}%;animation-delay:${Math.random() * 3}s`}));
+for (let i = 0; i < 3; i++) $('sky').append(Object.assign(document.createElement('i'), {className: 'cloud', style: `width:${60 + Math.random() * 90}px;top:${10 + i * 18}%;animation-duration:${40 + i * 15}s;animation-delay:-${i * 12}s`}));
+function el(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in props || {}) k in e ? e[k] = props[k] : e.setAttribute(k, props[k]);
+  for (const c of kids.flat()) e.append(c instanceof Node ? c : document.createTextNode(c ?? ''));
+  return e;
+}
+let csrf = '', es = null;
+
+async function api(method, path, body) {
+  const r = await fetch(path, {method, headers: {'Content-Type': 'application/json', 'X-CSRF': csrf}, body: body ? JSON.stringify(body) : undefined});
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401 && path !== '/api/login') showLogin();
+  if (r.status === 403 && j.error === 'change-password') { show('account'); }
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+const TABS = [['live', 'Ao vivo'], ['limits', 'Limites'], ['acl', 'Bloqueios'], ['usage', 'Uso'], ['account', 'Conta']];
+let cur = 'live';
+function show(t) {
+  cur = t;
+  for (const [k] of TABS) $('t-' + k).classList.toggle('hide', k !== t);
+  [...$('tabs').children].forEach((b, i) => b.classList.toggle('on', TABS[i][0] === t));
+  ({live: drawLive, limits: loadLimits, acl: loadAcl, usage: loadUsage, account: drawAccount})[t]();
+}
+TABS.forEach(([k, n]) => $('tabs').append(el('button', {onclick: () => show(k)}, k === 'live' ? el('i', {className: 'dot'}) : '', n)));
+
+function showLogin() {
+  if (es) es.close();
+  $('app').classList.add('hide'); $('login').classList.remove('hide');
+}
+async function enter(mustChange) {
+  $('login').classList.add('hide'); $('app').classList.remove('hide');
+  const me = await api('GET', '/api/me'); csrf = me.csrf; $('srv').textContent = me.server;
+  show(mustChange || me.mustChange ? 'account' : 'live');
+}
+$('lf').onsubmit = async e => {
+  e.preventDefault(); $('le').textContent = '';
+  try {
+    const j = await api('POST', '/api/login', {user: $('lu').value, pass: $('lp').value});
+    csrf = j.csrf; $('lp').value = ''; enter(j.mustChange);
+  } catch (x) { $('le').textContent = x.message; }
+};
+$('out').onclick = async () => { await api('POST', '/api/logout').catch(() => {}); showLogin(); };
+
+const mb = n => n >= 1024 ? (n / 1024).toFixed(2) + ' GB' : n.toFixed(1) + ' MB';
+const fmtB = b => mb(b / 1048576);
+const field = (label, input) => el('label', {}, label, input);
+const num = (v, step) => el('input', {type: 'number', min: 0, step: step || 1, value: v});
+const msg = el('span', {});
+function flash(node, text, bad) { node.className = bad ? 'err' : 'ok'; node.textContent = text; setTimeout(() => node.textContent = '', 3000); }
+
+// ---- ao vivo ----
+function drawLive() {
+  const root = $('t-live'); root.replaceChildren(el('div', {className: 'card mut'}, 'Conectando...'));
+  if (es) es.close();
+  es = new EventSource('/api/live');
+  es.onerror = () => { if (cur !== 'live') es.close(); };
+  es.onmessage = ev => {
+    if (cur !== 'live') { es.close(); return; }
+    const d = JSON.parse(ev.data), ps = d.peers.sort((a, b) => b.mbps - a.mbps);
+    const total = ps.reduce((s, p) => s + p.mbps, 0), circ = ps.reduce((s, p) => s + p.circuits, 0);
+    root.replaceChildren(
+      el('div', {className: 'stats'},
+        el('div', {className: 'card'}, el('b', {}, ps.length), 'conectados'), el('div', {className: 'card'}, el('b', {}, d.directory), 'hosts registrados'),
+        el('div', {className: 'card'}, el('b', {}, circ), 'sessões relay'), el('div', {className: 'card'}, el('b', {}, total.toFixed(2)), 'MB/s agora')),
+      el('div', {className: 'card tbl'}, el('h2', {}, 'Máquinas conectadas'),
+        ps.length ? el('table', {},
+          el('thead', {}, el('tr', {}, ...['ID', 'Endereço', 'MB/s', 'Sessões', 'Hoje', 'Mês', ''].map((h, i) => el('th', {className: i > 1 && i < 6 ? 'n' : ''}, h)))),
+          el('tbody', {}, ps.map(p => el('tr', {},
+            el('td', {}, p.id), el('td', {className: 'mut'}, p.addr),
+            el('td', {className: 'n'}, p.mbps.toFixed(2) + (p.limits.mbps ? ' / ' + p.limits.mbps : '')),
+            el('td', {className: 'n'}, p.circuits + (p.limits.circuits ? ' / ' + p.limits.circuits : '')),
+            el('td', {className: 'n'}, mb(p.dayMB) + (p.limits.dayMB ? ' / ' + mb(p.limits.dayMB) : '')),
+            el('td', {className: 'n'}, mb(p.monthMB) + (p.limits.monthMB ? ' / ' + mb(p.limits.monthMB) : '')),
+            el('td', {}, el('button', {className: 'd', onclick: () => api('POST', '/api/kick', {id: p.id})}, 'Desconectar'))))))
+          : el('p', {className: 'mut'}, 'Ninguém conectado.')));
+  };
+}
+
+// ---- limites ----
+async function loadLimits() {
+  const j = await api('GET', '/api/limits'), root = $('t-limits');
+  const form = (id, l, onSaved) => {
+    const f = {mbps: num(l.mbps, 0.1), circuits: num(l.circuits), dayMB: num(l.dayMB), monthMB: num(l.monthMB)};
+    const m = el('span', {});
+    return el('div', {},
+      field('Banda máx. (MB/s)', f.mbps), field('Sessões simultâneas', f.circuits),
+      field('Franquia por dia (MB)', f.dayMB), field('Franquia por mês (MB)', f.monthMB),
+      el('button', {className: 'b', onclick: async () => {
+        try { await api('PUT', '/api/limits', {id, limits: {mbps: +f.mbps.value, circuits: +f.circuits.value, dayMB: +f.dayMB.value, monthMB: +f.monthMB.value}}); flash(m, 'Salvo.'); onSaved && onSaved(); }
+        catch (x) { flash(m, x.message, 1); }
+      }}, 'Salvar'), ' ', m);
+  };
+  const nid = el('input', {placeholder: 'ID de 9 números', maxLength: 9, inputMode: 'numeric'});
+  const ov = Object.entries(j.overrides);
+  root.replaceChildren(
+    el('div', {className: 'card'}, el('h2', {}, 'Limite padrão (todos os IDs)'), el('p', {className: 'mut'}, '0 = sem limite. A banda conta entrada + saída; passar do limite por 3 segundos seguidos desconecta a máquina.'), form('*', j.default)),
+    el('div', {className: 'card'}, el('h2', {}, 'Limite por ID (substitui o padrão)'),
+      ov.map(([id, l]) => el('div', {className: 'card'}, el('b', {}, id), ' ', el('button', {className: 'd', onclick: async () => { await api('DELETE', '/api/limits?id=' + id); loadLimits(); }}, 'Remover'), el('div', {}, form(id, l)))),
+      el('div', {}, nid, ' ', el('button', {className: 'b', onclick: async () => {
+        try { await api('PUT', '/api/limits', {id: nid.value, limits: j.default}); loadLimits(); } catch (x) { alert(x.message); }
+      }}, 'Adicionar ID'))));
+}
+
+// ---- bloqueios ----
+async function loadAcl() {
+  const j = await api('GET', '/api/acl'), root = $('t-acl');
+  const id = el('input', {placeholder: 'ID de 9 números', maxLength: 9, inputMode: 'numeric'});
+  const note = el('input', {placeholder: 'Motivo (opcional)', maxLength: 200});
+  const kind = el('select', {}, el('option', {value: 'block'}, 'Bloquear'), el('option', {value: 'allow'}, 'Permitir'));
+  const only = el('input', {type: 'checkbox', checked: j.allowOnly, onchange: async () => { await api('POST', '/api/allowonly', {on: only.checked}); }});
+  const m = el('span', {});
+  root.replaceChildren(
+    el('div', {className: 'card'}, el('h2', {}, 'Modo'), el('label', {style: 'flex-direction:row;align-items:center;gap:8px;color:inherit;font-size:14px'}, only, 'Só IDs da lista "Permitir" podem usar o servidor')),
+    el('div', {className: 'card'}, el('h2', {}, 'Adicionar'), kind, ' ', id, ' ', note, ' ',
+      el('button', {className: 'b', onclick: async () => {
+        try { await api('POST', '/api/acl', {id: id.value, kind: kind.value, note: note.value}); loadAcl(); } catch (x) { flash(m, x.message, 1); }
+      }}, 'Adicionar'), ' ', m),
+    el('div', {className: 'card tbl'}, el('h2', {}, 'Lista'),
+      j.entries.length ? el('table', {}, el('thead', {}, el('tr', {}, ['ID', 'Tipo', 'Motivo', 'Desde', ''].map(h => el('th', {}, h)))),
+        el('tbody', {}, j.entries.map(e => el('tr', {}, el('td', {}, e.id), el('td', {}, e.kind === 'block' ? 'Bloqueado' : 'Permitido'), el('td', {className: 'mut'}, e.note),
+          el('td', {className: 'mut'}, new Date(e.created * 1000).toLocaleString()),
+          el('td', {}, el('button', {className: 'd', onclick: async () => { await api('DELETE', '/api/acl?id=' + e.id); loadAcl(); }}, 'Remover'))))))
+        : el('p', {className: 'mut'}, 'Lista vazia.')));
+}
+
+// ---- uso ----
+async function loadUsage() {
+  const j = await api('GET', '/api/usage'), root = $('t-usage');
+  const t = (title, rows) => el('div', {className: 'card tbl'}, el('h2', {}, title),
+    rows.length ? el('table', {}, el('thead', {}, el('tr', {}, el('th', {}, 'ID'), el('th', {className: 'n'}, 'Dados'))),
+      el('tbody', {}, rows.map(r => el('tr', {}, el('td', {}, r.id), el('td', {className: 'n'}, fmtB(r.bytes)))))) : el('p', {className: 'mut'}, 'Sem uso registrado.'));
+  root.replaceChildren(t('Maiores consumidores hoje', j.day), t('Maiores consumidores no mês', j.month));
+}
+
+// ---- conta ----
+function drawAccount() {
+  const o = el('input', {type: 'password', autocomplete: 'current-password'}), n = el('input', {type: 'password', autocomplete: 'new-password'}), m = el('span', {});
+  $('t-account').replaceChildren(el('div', {className: 'card'}, el('h2', {}, 'Trocar senha do administrador'),
+    el('p', {className: 'mut'}, 'Mínimo de 10 caracteres. No primeiro acesso a troca é obrigatória.'),
+    field('Senha atual', o), field('Nova senha', n),
+    el('div', {}, el('button', {className: 'b', onclick: async () => {
+      try { await api('POST', '/api/password', {old: o.value, new: n.value}); flash(m, 'Senha alterada.'); o.value = n.value = ''; } catch (x) { flash(m, x.message, 1); }
+    }}, 'Salvar'), ' ', m)));
+}
+
+api('GET', '/api/me').then(me => { csrf = me.csrf; enter(me.mustChange); }).catch(showLogin);
+</script>
+</body>
+</html>

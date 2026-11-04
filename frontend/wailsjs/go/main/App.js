@@ -90,6 +90,10 @@ export function SendInput(arg1, arg2) {
   return window['go']['main']['App']['SendInput'](arg1, arg2);
 }
 
+export function SessionMode(arg1) {
+  return window['go']['main']['App']['SessionMode'](arg1);
+}
+
 export function SetActiveSession(arg1) {
   return window['go']['main']['App']['SetActiveSession'](arg1);
 }

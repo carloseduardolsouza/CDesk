@@ -42,6 +42,7 @@ type hostConn struct {
 	winAssist        atomic.Bool  // trazer janelas fora da tela para dentro
 	fileClip         atomic.Bool  // sincronizar arquivos copiados
 	quit             chan struct{}
+	tiles            bool // o viewer aceita msgTiles (definido antes de começar a enviar quadros)
 	fxMu             sync.Mutex
 	audioStop        chan struct{}
 	resetRes, noWall bool // o que desfazer ao fim da sessão

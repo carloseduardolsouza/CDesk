@@ -46,6 +46,8 @@ export function SendChat(arg1:string,arg2:string):Promise<void>;
 
 export function SendInput(arg1:string,arg2:string):Promise<void>;
 
+export function SessionMode(arg1:string):Promise<Record<string, any>>;
+
 export function SetActiveSession(arg1:string):Promise<void>;
 
 export function SetMonitor(arg1:string,arg2:number):Promise<void>;

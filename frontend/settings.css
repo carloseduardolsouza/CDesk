@@ -140,6 +140,7 @@ select:focus { outline: 2px solid #3B82F6; outline-offset: -2px; }
 /* ---------- barra da sessão (monitores) ---------- */
 .sessbar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: flex-end; gap: 12px; min-height: 40px; padding: 4px 12px; background: var(--bar1); border-bottom: 1px solid var(--line1); }
 .badge { padding: 4px 10px; border: 1px solid var(--menu-line); border-radius: 999px; font-size: 12px; font-weight: 600; color: #FBBF24; }
+.badge.ok { color: #6EE7B7; }
 .monbtns { display: flex; align-items: center; gap: 6px; color: var(--muted2); }
 .mon { width: 32px; height: 30px; display: grid; place-items: center; background: none; border: 1px solid var(--menu-line); border-radius: 6px; color: var(--text); font-size: 13px; font-weight: 700; }
 .mon:hover { background: #2C313A; }

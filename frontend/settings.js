@@ -257,6 +257,8 @@ function updateNetStatus() {
   set3("netP2P", net.online ? "Conectado" : "Conectando...", net.online ? "ok" : "warn");
   set3("netLocal", cfg.mdns ? "Ativa" : "Desativada", cfg.mdns ? "ok" : "off");
   set3("netKnown", net.known === 1 ? "1 computador" : `${net.known} computadores`, net.known > 0 ? "ok" : "off");
+  const srv = { off: ["Desativado (só P2P)", "off"], none: ["Endereço do servidor inválido", "warn"], down: ["Fora do ar, usando P2P", "warn"], up: ["Conectado", "ok"] }[net.server] || ["...", "off"];
+  set3("netServer", srv[0], srv[1]);
 }
 
 function secRede() {
@@ -266,14 +268,23 @@ function secRede() {
     const v = port.value.trim();
     set("port", v === "" ? 0 : Number(v.replace(/\D/g, "")));
   };
-  const relay = h("input", { class: "sinput mono full", id: "relay", value: cfg.relay || "", placeholder: "/dns4/relay.exemplo.com/tcp/4001/p2p/12D3Koo...", spellcheck: "false" });
+  const relay = h("input", { class: "sinput mono full", id: "relay", value: cfg.relay || "", placeholder: "Vazio: usa o servidor padrão do CDesk", spellcheck: "false" });
   relay.onchange = () => set("relay", relay.value.trim());
+  const mode = h("div", { class: "seg", role: "radiogroup", "aria-label": "Como conectar" },
+    ...[[true, "Servidor CDesk"], [false, "Somente P2P"]].map(([v, label]) => h("button", {
+      role: "radio", "aria-checked": String(!!cfg.useServer === v),
+      onclick: () => { set("useServer", v); renderSettings(); },
+    }, label)));
+  relay.disabled = !cfg.useServer;
   const sec = [
     shead("Rede", "Como este computador encontra os outros e abre a conexão direta. As mudanças desta tela valem depois de reiniciar o CDesk."),
     panel("Status",
       row("Rede P2P", "netP2P"),
+      row("Servidor CDesk", "netServer"),
       row("Descoberta na rede local", "netLocal"),
       row("Computadores que a rede já conhece", "netKnown")),
+    panel("Conexão",
+      srow("Como conectar", "Servidor CDesk: tenta o servidor primeiro, que conecta mais rápido e funciona mesmo atrás de CGNAT; se ele estiver fora do ar, o CDesk usa P2P sozinho. Somente P2P: nunca usa o servidor.", mode)),
     panel("Descoberta e NAT",
       srow("Encontrar computadores na rede local", "Usa mDNS para achar outros CDesk sem passar pela internet",
         toggle(cfg.mdns, "Encontrar computadores na rede local", (on) => { set("mdns", on); updateNetStatus(); })),
@@ -284,8 +295,8 @@ function secRede() {
       srow("Porta de escuta", "Deixe vazio para escolher automaticamente (1024 a 65535)", port, "porta")),
     panel(null,
       h("div", { class: "scardhead row" },
-        h("div", {}, h("h2", {}, "Relay próprio"), h("span", { class: "desc" }, "Para redes com CGNAT ou NAT simétrico, onde a conexão direta não abre. Use o endereço completo do relay (com /p2p/ID).")), h("span", { class: "pill soon" }, "Vale após reiniciar")),
-      h("div", { class: "fields single" }, h("label", { for: "relay", class: "desc" }, "Endereço do relay"), relay)),
+        h("div", {}, h("h2", {}, "Servidor personalizado (opcional)"), h("span", { class: "desc" }, "Deixe vazio para usar o servidor padrão do CDesk. Só preencha se você mantém um servidor próprio (endereço completo, com /p2p/ID).")), h("span", { class: "pill soon" }, "Vale após reiniciar")),
+      h("div", { class: "fields single" }, h("label", { for: "relay", class: "desc" }, "Endereço do servidor personalizado"), relay)),
   ];
   setTimeout(updateNetStatus);
   return sec;

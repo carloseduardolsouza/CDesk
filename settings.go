@@ -41,14 +41,15 @@ type Settings struct {
 	ShowCursor     bool      `json:"showCursor"`    // sessões novas já mostram o cursor do computador remoto
 	HideWallpaper  bool      `json:"hideWallpaper"` // pedir ao host para esconder o papel de parede na sessão
 	Relay          string    `json:"relay"`         // relay próprio (endereço completo, com /p2p/ID); vale após reiniciar
+	UseServer      bool      `json:"useServer"`     // true: tenta o servidor CDesk (Relay) antes do P2P; false: só P2P
 }
 
 func defaultSettings() Settings {
 	return Settings{
 		AskSeconds: 30, AskOnTop: true, AskSound: true, AllowControl: true, AllowClipboard: true, AllowFiles: true,
 		Allowed: []Allowed{},
-		MDNS:    true, UPnP: true, HolePunch: true,
-		Priority: "equilibrada", FPS: 15, TrayOnClose: true,
+		MDNS:    true, UPnP: true, HolePunch: true, UseServer: true,
+		Priority: "equilibrada", FPS: 30, TrayOnClose: true,
 	}
 }
 
@@ -68,6 +69,22 @@ func (a *App) settings() Settings {
 	defer a.mu.Unlock()
 	s := a.cfg
 	s.Allowed = append([]Allowed{}, s.Allowed...)
+	return s
+}
+
+// cleanRelay aceita o endereço do servidor como foi copiado do log: com quebras de linha ou espaços no meio
+// e com o texto que vem antes do /ip4/... ou /dns4/...
+func cleanRelay(s string) string {
+	s = strings.Join(strings.Fields(s), "")
+	first := -1
+	for _, p := range []string{"/ip4/", "/ip6/", "/dns4/", "/dns6/", "/dns/"} {
+		if i := strings.Index(s, p); i >= 0 && (first < 0 || i < first) {
+			first = i
+		}
+	}
+	if first > 0 {
+		s = s[first:]
+	}
 	return s
 }
 
@@ -110,7 +127,7 @@ func (a *App) SaveSettings(s Settings) error {
 	if s.FPS < 5 || s.FPS > 30 {
 		return fmt.Errorf("Quadros por segundo precisa ficar entre 5 e 30.")
 	}
-	s.Relay = strings.TrimSpace(s.Relay)
+	s.Relay = cleanRelay(s.Relay)
 	if _, err := peer.AddrInfoFromString(s.Relay); s.Relay != "" && err != nil {
 		return fmt.Errorf("Endereço do relay inválido. Use o endereço completo, como /dns4/relay.exemplo.com/tcp/4001/p2p/12D3Koo...")
 	}

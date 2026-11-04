@@ -47,25 +47,15 @@ func (a *App) probe(id string) bool {
 		return true
 	}
 	for _, p := range a.h.Peerstore().Peers() {
-		if p == a.h.ID() || numID(p) != id {
-			continue
-		}
-		if a.h.Network().Connectedness(p) == network.Connected {
+		if p != a.h.ID() && numID(p) == id && a.h.Network().Connectedness(p) == network.Connected {
 			return true
 		}
-		cctx, c := context.WithTimeout(ctx, probeKnown)
-		err := a.h.Connect(cctx, peer.AddrInfo{ID: p})
-		c()
-		if err == nil {
-			return done(p, false)
-		}
 	}
-	for p := range a.dht.FindProvidersAsync(ctx, provKey(id), 1) {
-		if numID(p.ID) == id && a.h.Connect(ctx, p) == nil {
-			return done(p.ID, false)
-		}
+	p, err := a.find(ctx, id) // endereços conhecidos, servidor e DHT ao mesmo tempo
+	if err != nil {
+		return false
 	}
-	return false
+	return done(p, false)
 }
 
 // CheckOnline verifica em segundo plano quais dos computadores (IDs de 9 dígitos) estão online. Cada

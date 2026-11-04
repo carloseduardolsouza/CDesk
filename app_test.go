@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -12,11 +14,15 @@ import (
 )
 
 // newPeer sobe um App sem janela; r registra os eventos ao frontend e responde aos pedidos de acesso.
+// testSettings: os testes não falam com o servidor real; os testes ao vivo trocam por "{}" (padrão do app).
+var testSettings = `{"useServer":false}`
+
 func newPeer(t *testing.T, noMDNS bool, r *recorder) *App {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	a := &App{ctx: ctx, dir: t.TempDir(), noMDNS: noMDNS}
+	os.WriteFile(filepath.Join(a.dir, "settings.json"), []byte(testSettings), 0o600)
 	a.emit = func(name string, data ...any) { r.on(name, data) }
 	a.askFn = r.ask
 	fc := &fakeClip{}
@@ -346,7 +352,7 @@ func TestSoVisualizacao(t *testing.T) {
 func TestConfiguracoesValidamESalvam(t *testing.T) {
 	a := &App{dir: t.TempDir()}
 	a.loadSettings()
-	if s := a.settings(); s.AskSeconds != 30 || !s.AllowControl || s.FPS != 15 {
+	if s := a.settings(); s.AskSeconds != 30 || !s.AllowControl || s.FPS != 30 {
 		t.Fatalf("padrões inesperados: %+v", s)
 	}
 	ruins := map[string]func(*Settings){

@@ -161,6 +161,8 @@ const show = (id) => {
     setScreen(s.blob);
     renderBar();
     pull(id);
+    $("modeBadge").hidden = true;
+    pollMode();
     $("viewer").focus({ preventScroll: true }); // o teclado vai para a sessão
   } else if (s) {
     renderConn();
@@ -182,6 +184,20 @@ $("newTab").onclick = () => show("home");
 const closeSettings = () => {
   settingsOpen = false;
   if (active === "settings") show("home"); else renderTabs();
+};
+
+// Por onde passa a sessão (servidor, direto, rede local ou relay público) e o ping.
+const MODES = { server: "Servidor", direct: "Direto", lan: "Rede local", relay: "Relay público" };
+const pollMode = async () => {
+  const id = active;
+  const s = sessions.get(id);
+  if (!s || s.state !== "live" || document.hidden) return;
+  const m = await app().SessionMode(id).catch(() => ({}));
+  if (id !== active || !MODES[m.mode]) return;
+  const b = $("modeBadge");
+  b.hidden = false;
+  b.textContent = MODES[m.mode] + (m.ms ? ` · ${m.ms} ms` : "");
+  b.className = "badge" + (m.mode === "relay" ? "" : " ok");
 };
 
 // Barra da sessão: botões Chat, Arquivos e Exibição (monitores ficam na janela Exibição, display.js).
@@ -472,6 +488,7 @@ window.addEventListener("load", async () => {
   await refreshSaved();
   pollStatus();
   setInterval(pollStatus, 3000);
+  setInterval(pollMode, 5000);
   refreshPresence();
   refreshLan();
   // com a janela à vista na tela inicial, atualiza quem está online (a cada 30 s) e a lista da rede local (5 s)

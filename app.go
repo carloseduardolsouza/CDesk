@@ -43,6 +43,7 @@ type hello struct {
 	Priority string `json:"prio"`
 	FPS      int    `json:"fps"`
 	Ask      bool   `json:"ask"`    // pedir permissão ao usuário do host mesmo que ele tenha senha de acesso
+	Tiles    bool   `json:"tiles"`  // sabe receber só as áreas alteradas da tela (msgTiles)
 	NoWall   bool   `json:"nowall"` // esconder o papel de parede do host durante a sessão
 }
 
@@ -100,11 +101,14 @@ type App struct {
 	// conexões em andamento (abrir a sessão pode levar até 1 min), para poder cancelar
 	connecting map[string]context.CancelFunc
 	// quem está online (presence.go)
-	probing     map[string]bool       // IDs sendo verificados agora
-	probeSem    chan struct{}         // limita as verificações simultâneas
-	lan         map[peer.ID]time.Time // computadores achados por mDNS e quando
-	lanTTL      time.Duration
-	probeBudget time.Duration // 0 = probeBudget (os testes encurtam)
+	probing      map[string]bool       // IDs sendo verificados agora
+	probeSem     chan struct{}         // limita as verificações simultâneas
+	serverUp     atomic.Bool           // o servidor próprio respondeu na última chamada
+	serverDownAt atomic.Int64          // quando o servidor deixou de responder (unix nano); evita esperar o timeout a cada busca
+	reservedAt   atomic.Int64          // quando reservamos vaga no relay do servidor (unix nano)
+	lan          map[peer.ID]time.Time // computadores achados por mDNS e quando
+	lanTTL       time.Duration
+	probeBudget  time.Duration // 0 = probeBudget (os testes encurtam)
 }
 
 func (a *App) startup(ctx context.Context) {
@@ -183,11 +187,12 @@ func (a *App) initP2P() error {
 
 	boot := dht.GetDefaultBootstrapPeerAddrInfos()
 	relays := slices.Clone(boot) // relays para quem está atrás de NAT: os públicos e, se houver, o próprio
-	if ai, err := peer.AddrInfoFromString(a.cfg.Relay); a.cfg.Relay != "" && err == nil {
+	if ai, err := peer.AddrInfoFromString(a.cfg.serverAddress()); a.cfg.UseServer && err == nil {
 		relays = append([]peer.AddrInfo{*ai}, relays...)
 	}
 	opts := []libp2p.Option{
 		libp2p.Identity(priv),
+		libp2p.UserAgent("cdesk/" + version), // o servidor próprio só atende apps CDesk
 		// shortcut: relays públicos do bootstrap IPFS, trocar por relays próprios/da comunidade
 		libp2p.EnableAutoRelayWithStaticRelays(relays),
 	}
@@ -230,7 +235,18 @@ func (a *App) initP2P() error {
 		for _, p := range relays {
 			go a.h.Connect(a.ctx, p)
 		}
+		if rs, err := a.h.EventBus().Subscribe(new(event.EvtLocalAddressesUpdated)); err == nil { // vale também com a opção desligada: ligar nas Configurações passa a valer na hora
+			go a.registerLoop(rs)
+		}
 		a.dht.Bootstrap(a.ctx)
+		// anunciar antes de a tabela de rotas ter peers falha e só tenta de novo em 15 s: espera ter alguns
+		for deadline := time.Now().Add(20 * time.Second); a.dht.RoutingTable().Size() < 6 && time.Now().Before(deadline); {
+			select {
+			case <-time.After(250 * time.Millisecond):
+			case <-a.ctx.Done():
+				return
+			}
+		}
 		next := time.After(0)
 		for {
 			select {
@@ -265,7 +281,7 @@ func (a *App) Status() map[string]any {
 	if a.dht != nil {
 		n = a.dht.RoutingTable().Size()
 	}
-	return map[string]any{"online": n > 0, "known": n}
+	return map[string]any{"online": n > 0, "known": n, "server": a.serverState()}
 }
 
 // SetPassword define a senha de acesso não supervisionado; vazio remove.
@@ -393,6 +409,7 @@ func (a *App) serve(s network.Stream) {
 		}
 	}()
 
+	conn.tiles = hi.Tiles
 	p := newPacer(hi.Priority, hi.FPS)
 	go sendFrames(conn, p)
 	conn.sendInfo()        // quantos monitores há e qual está sendo mostrado
@@ -440,26 +457,69 @@ func (a *App) serve(s network.Stream) {
 
 // ---- lado viewer ----
 
-// find acha o peer cujo ID numérico é id: primeiro entre os já conhecidos (rede local), depois na DHT.
+// find acha o peer cujo ID numérico é id. Os três caminhos (endereços já conhecidos, servidor CDesk e DHT)
+// correm ao mesmo tempo e vale o primeiro que conectar: em série, a espera de um (endereço velho, servidor
+// fora do ar) somava com a do próximo.
 func (a *App) find(ctx context.Context, id string) (peer.ID, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel() // derruba os caminhos que perderam
+	ways := []func(context.Context, string) (peer.ID, bool){a.viaKnown, a.viaServer, a.viaDHT}
+	found := make(chan peer.ID, len(ways))
+	for _, w := range ways {
+		go func() {
+			if p, ok := w(ctx, id); ok {
+				found <- p
+			} else {
+				found <- ""
+			}
+		}()
+	}
+	for range ways {
+		select {
+		case p := <-found:
+			if p != "" {
+				return p, nil
+			}
+		case <-ctx.Done():
+			return "", fmt.Errorf("Computador não encontrado. Confira o ID e se o CDesk está aberto nele.")
+		}
+	}
+	return "", fmt.Errorf("Computador não encontrado. Confira o ID e se o CDesk está aberto nele.")
+}
+
+// viaKnown tenta os endereços que já temos do computador (rede local, conexões anteriores).
+func (a *App) viaKnown(ctx context.Context, id string) (peer.ID, bool) {
 	for _, p := range a.h.Peerstore().Peers() {
 		if p == a.h.ID() || numID(p) != id {
 			continue
 		}
-		// endereço lembrado pode estar velho (IP mudou): limita a espera para cair logo na DHT
+		// endereço lembrado pode estar velho (IP mudou): limita a espera, os outros caminhos seguem em paralelo
 		cctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		err := a.h.Connect(cctx, peer.AddrInfo{ID: p})
 		cancel()
 		if err == nil {
-			return p, nil
+			return p, true
 		}
 	}
-	for p := range a.dht.FindProvidersAsync(ctx, provKey(id), 5) {
-		if numID(p.ID) == id && a.h.Connect(ctx, p) == nil {
-			return p.ID, nil
+	return "", false
+}
+
+// viaDHT procura quem anunciou o ID na DHT. Se o registro veio sem endereços, pergunta onde o peer está.
+func (a *App) viaDHT(ctx context.Context, id string) (peer.ID, bool) {
+	for p := range a.dht.FindProvidersAsync(ctx, provKey(id), 1) {
+		if numID(p.ID) != id {
+			continue
+		}
+		if len(p.Addrs) == 0 {
+			if ai, err := a.dht.FindPeer(ctx, p.ID); err == nil {
+				p = ai
+			}
+		}
+		if a.h.Connect(ctx, p) == nil {
+			return p.ID, true
 		}
 	}
-	return "", fmt.Errorf("Computador não encontrado. Confira o ID e se o CDesk está aberto nele.")
+	return "", false
 }
 
 // waitDirect espera o hole punching trocar a conexão de relay por uma direta. O relay público
@@ -473,7 +533,7 @@ func (a *App) waitDirect(ctx context.Context, pid peer.ID) bool {
 			}
 		}
 		select {
-		case <-time.After(500 * time.Millisecond):
+		case <-time.After(100 * time.Millisecond): // o hole punching costuma levar 1 a 3 s: não espera meio segundo a mais
 		case <-deadline:
 			return false
 		case <-ctx.Done():
@@ -566,7 +626,7 @@ func (a *App) connect(cctx context.Context, id, pw string, askPermission bool) e
 	s.SetDeadline(time.Now().Add(45 * time.Second))
 	stopCancel := context.AfterFunc(cctx, func() { s.SetDeadline(time.Now()) }) // cancelar interrompe a espera
 	cfg := a.settings()
-	hb, _ := json.Marshal(hello{PW: pw, Name: cfg.Name, Priority: cfg.Priority, FPS: cfg.FPS, Ask: askPermission, NoWall: cfg.HideWallpaper})
+	hb, _ := json.Marshal(hello{PW: pw, Name: cfg.Name, Priority: cfg.Priority, FPS: cfg.FPS, Ask: askPermission, NoWall: cfg.HideWallpaper, Tiles: true})
 	if _, err := s.Write(append(hb, '\n')); err != nil {
 		s.Reset()
 		return err
@@ -642,6 +702,14 @@ func (a *App) readFrames(id string, v *viewSession, r *bufio.Reader) {
 			a.chatReceived(id, string(buf))
 			continue
 		}
+		if hdr[0] == msgTiles {
+			if err := v.applyTiles(buf); err != nil { // blocos que não encaixam: o outro lado está fora do protocolo
+				return
+			}
+			a.emit("frame", id)
+			v.write([]byte("{\"t\":\"ack\"}\n"))
+			continue
+		}
 		switch hdr[0] {
 		case msgAudio:
 			v.audioMu.Lock()
@@ -676,7 +744,7 @@ func (a *App) readFrames(id string, v *viewSession, r *bufio.Reader) {
 			}
 			continue
 		}
-		v.frame.Store(buf)
+		v.setKey(buf)       // quadro inteiro: nova base para os blocos
 		a.emit("frame", id) // só avisa; o frontend busca o quadro em /frame/<id>
 		v.write([]byte("{\"t\":\"ack\"}\n"))
 	}
